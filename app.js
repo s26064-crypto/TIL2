@@ -750,6 +750,17 @@
     return k;
   }
 
+  // 지금 입력칸에 틀린 채로 남아 있는 글자 수. 지우고 바르게 다시 치면 줄어서 정확도가 다시 오른다
+  // (문장 끝에 덧붙인 띄어쓰기는 세지 않음)
+  function wrongNow(c) {
+    let k = 0;
+    for (let i = 0; i < c.typed.length; i++) {
+      if (i >= c.target.length) k += c.typed[i] === ' ' ? 0 : 1;
+      else if (!same(c.typed[i], c.target[i])) k++;
+    }
+    return k;
+  }
+
   function updateStats() {
     if (!S || !S.cur) return;
     const c = S.cur;
@@ -760,7 +771,7 @@
     }
     const live = !c.submitted;
     const len = S.tot.len + (live ? c.target.length : 0);
-    const err = S.tot.err + (live ? Math.min(c.errs.size, c.target.length) : 0);
+    const err = S.tot.err + (live ? Math.min(wrongNow(c), c.target.length) : 0);
     const acc = len ? Math.max(0, Math.round((1 - err / len) * 100)) : 100;
     const prog = S.total ? Math.round((S.done / S.total) * 100) : 0;
     const best = Math.max(S.best, 0);
@@ -835,7 +846,7 @@
     if (v.length > c.target.length + 12) v = v.slice(0, c.target.length + 12);
     if (v !== input.value) input.value = v;
     if (!c.start && v.length) c.start = performance.now();
-    // 한 번이라도 틀리게 친 자리는 오타로 센다 (고쳐도 남음)
+    // 한 번이라도 틀리게 친 자리 — 정확도에는 안 쓰고, 외워 쓰기 통과 기준(허용 오타)에만 쓴다 (고쳐도 남음)
     for (let i = 0; i < v.length; i++) {
       if (i >= c.target.length && v[i] === ' ') continue; // 문장 끝에 습관처럼 친 띄어쓰기는 봐준다
       if (i >= c.target.length || !same(v[i], c.target[i])) c.errs.add(i);
@@ -1002,7 +1013,7 @@
     const ok = countCorrect(c);
 
     S.tot.len += n;
-    S.tot.err += Math.min(c.errs.size, n);
+    S.tot.err += Math.min(wrongNow(c) + Math.max(0, n - c.typed.trimEnd().length), n);
     S.tot.correct += ok;
     S.tot.ms += ms;
     c.submitted = true;
