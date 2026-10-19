@@ -101,6 +101,22 @@
 
   const ARROW = /^\s*(?:[→⇒➜➝➞➔➡⟶]|-+>|=>)\s*/;
 
+  // "영어 / 뜻" 의 / 위치. and/or, 24/7 처럼 영어 안의 / 는 건너뛴다:
+  // 왼쪽에 영어가 있고, 오른쪽이 비었거나(뜻 생략) 한국어가 있으면서 / 앞이 띄어 있거나 바로 한국어가 올 때만 구분자로 본다
+  function findSlashSep(raw) {
+    const re = /[/／]/g;
+    let m;
+    while ((m = re.exec(raw))) {
+      const left = raw.slice(0, m.index);
+      const right = raw.slice(m.index + 1);
+      if (!/[A-Za-z]/.test(left)) continue;
+      if (!right.trim()) return m.index;
+      if (!HANGUL.test(right)) continue;
+      if (/\s$/.test(left) || HANGUL.test(right.trimStart()[0])) return m.index;
+    }
+    return -1;
+  }
+
   function parseText(text) {
     const lines = text.split(/\r?\n/);
     // "영어 문장 / → 한국어 뜻" 꼴이면, 화살표 없는 한국어 줄(예: "1. 헤어짐")은 주제 제목으로 본다
@@ -117,9 +133,13 @@
       let en = '';
       let ko = '';
       const sep = raw.search(/[|\t]/);
+      const slash = sep < 0 ? findSlashSep(raw) : -1;
       if (sep >= 0) {
         en = raw.slice(0, sep);
         ko = raw.slice(sep + 1).replace(/[|\t]/g, ' ');
+      } else if (slash >= 0) {
+        en = raw.slice(0, slash);
+        ko = raw.slice(slash + 1);
       } else {
         const h = raw.search(HANGUL);
         if (h < 0) en = raw;
