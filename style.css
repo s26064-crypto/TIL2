@@ -312,6 +312,41 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
 }
 .steps-note { margin: 14px 2px 0; font-size: 14px; color: var(--ink-2); }
 
+.editor-grid.one-col { grid-template-columns: 1fr; }
+.field-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: -4px; }
+.seg.seg-sm span { padding: 5px 12px; font-size: 13.5px; }
+.paste-mode { display: flex; flex-direction: column; gap: 14px; flex: 1; }
+
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1.25fr) minmax(0, 1fr) 34px;
+  grid-template-areas: "no en ko del";
+  gap: 8px;
+  align-items: center;
+}
+.row-no { grid-area: no; font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); text-align: right; }
+.row-en { grid-area: en; }
+.row-ko { grid-area: ko; }
+.row-del { grid-area: del; width: 34px; height: 34px; color: var(--ink-3); }
+.row input {
+  width: 100%;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+  padding: 9px 11px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.row input.row-en { font-family: var(--mono); font-size: 14.5px; }
+.row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.row.warn input.row-en { border-color: var(--warn); }
+.rows-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.rows-count { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.rows-help { margin: 8px 0 0; font-size: 13.5px; color: var(--ink-3); }
+
 /* ───────── 문장 넣기 ───────── */
 .page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .page-head h1 { margin: 0; font-size: 26px; }
@@ -836,6 +871,14 @@ legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 700; colo
   .fb-row { grid-template-columns: 1fr; gap: 0; }
   .r-badge { width: 80px; }
   .editor-actions .btn, .result-actions .btn { flex: 1; }
+  .row {
+    grid-template-columns: 20px minmax(0, 1fr) 34px;
+    grid-template-areas: "no en del" "no ko del";
+    row-gap: 6px;
+  }
+  .row-no, .row-del { align-self: start; }
+  .row-no { padding-top: 10px; }
+  .rows { gap: 14px; }
 }
 @media (max-width: 420px) {
   .steps { grid-template-columns: 1fr; }
