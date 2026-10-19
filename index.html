@@ -293,6 +293,38 @@
     </form>
   </dialog>
 
+  <!-- ───────── 세트 공유 ───────── -->
+  <dialog id="share" class="dialog small">
+    <form method="dialog" class="dialog-in">
+      <div>
+        <h2 id="share-title">공유하기</h2>
+        <p id="share-msg" class="confirm-msg"></p>
+      </div>
+      <input id="share-url" class="share-url" type="text" readonly aria-label="공유 링크">
+      <div class="dialog-foot">
+        <button class="btn ghost" value="close">닫기</button>
+        <button class="btn" type="button" id="share-native" hidden>다른 앱으로 보내기</button>
+        <button class="btn primary" type="button" id="share-copy">링크 복사</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ───────── 공유받은 세트 추가 ───────── -->
+  <dialog id="import" class="dialog small">
+    <form method="dialog" class="dialog-in">
+      <div>
+        <p class="eyebrow">친구가 보낸 문장 세트</p>
+        <h2 id="import-title"></h2>
+        <p id="import-msg" class="confirm-msg"></p>
+      </div>
+      <ol id="import-list" class="preview-list import-list"></ol>
+      <div class="dialog-foot">
+        <button class="btn ghost" value="cancel" autofocus>취소</button>
+        <button class="btn primary" value="ok">내 세트에 추가</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
