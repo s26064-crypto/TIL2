@@ -580,10 +580,10 @@
 
   const isBlankRow = (li) => !li.querySelector('.row-en').value.trim() && !li.querySelector('.row-ko').value.trim();
 
-  // 새로 넣을 땐 빈 줄 3개, 고칠 땐 문장들 + 이어 쓸 빈 줄 하나
+  // 새로 넣을 땐 빈 줄 5개, 고칠 땐 문장들 + 이어 쓸 빈 줄 하나
   function setRows(items) {
     const rows = items.map((it) => rowEl(it.en, it.ko));
-    rows.push(...Array.from({ length: items.length ? 1 : 3 }, () => rowEl()));
+    rows.push(...Array.from({ length: items.length ? 1 : 5 }, () => rowEl()));
     rowsBox.replaceChildren(...rows);
     refreshRows();
   }
