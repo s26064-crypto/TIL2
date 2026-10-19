@@ -364,7 +364,7 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
 .howto-title { margin: 0 0 4px; font-weight: 700; color: var(--ink); }
 .howto ul { margin: 0; padding-left: 18px; }
 .howto li { margin: 2px 0; }
-.howto code { padding: 0 5px; border-radius: 5px; background: var(--surface); border: 1px solid var(--rule); }
+.howto code { white-space: nowrap; padding: 0 5px; border-radius: 5px; background: var(--surface); border: 1px solid var(--rule); }
 
 .preview { display: flex; flex-direction: column; max-height: 680px; }
 .preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -389,6 +389,18 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
 }
 .preview-list li.pv-empty { padding-left: 4px; color: var(--ink-3); }
 .preview-list li.pv-empty::before { content: none; }
+.preview-list li.pv-group {
+  padding: 16px 4px 6px;
+  border-top: 0;
+  counter-reset: pv;
+  counter-increment: none;
+  font-weight: 700;
+  color: var(--ink);
+}
+.preview-list li.pv-group::before { content: none; }
+.preview-list li.pv-group span { margin-left: 8px; font-size: 12.5px; font-weight: 500; color: var(--ink-3); }
+.preview-list li.pv-group + li { border-top: 0; }
+.split-sets { margin-left: auto; font-size: 14px; font-weight: 600; }
 .pv-en { display: block; font-family: var(--mono); font-size: 13.5px; word-break: normal; }
 .pv-ko { display: block; font-size: 13px; color: var(--ink-2); margin-top: 2px; }
 .pv-ko.none { color: var(--ink-3); font-style: italic; }

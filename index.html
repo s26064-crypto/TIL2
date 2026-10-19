@@ -86,13 +86,15 @@
           <div class="editor-tools">
             <button class="btn sm" type="button" id="split-btn">문단 → 문장 나누기</button>
             <button class="btn ghost sm" type="button" id="sample-btn">예시 문장 넣기</button>
+            <label class="check split-sets" id="split-sets-wrap" hidden><input type="checkbox" id="split-sets" checked><span id="split-sets-label">주제별로 나눠서 저장</span></label>
           </div>
           <div class="howto">
             <p class="howto-title">넣는 방법</p>
             <ul>
               <li>한 줄에 영어 문장 하나씩 넣어요.</li>
               <li>뜻도 같이 외우려면 같은 줄에 <code>|</code> 를 넣고 뜻을 써요. <span class="muted">예) Practice makes perfect. | 연습이 완벽을 만든다.</span></li>
-              <li>영어 줄 바로 아래(또는 위) 줄에 한국어 뜻을 써도 알아서 짝지어 줘요.</li>
+              <li>영어 줄 바로 아래(또는 위) 줄에 한국어 뜻을 써도 알아서 짝지어 줘요. <code>→ 뜻</code>처럼 화살표를 붙여도 돼요.</li>
+              <li>화살표로 뜻을 쓴 경우 <span class="muted">1. 헤어짐</span> 같은 한국어 제목 줄은 주제로 알아보고, 주제마다 세트를 따로 만들 수 있어요.</li>
               <li>문단을 통째로 붙여 넣었다면 <b>문단 → 문장 나누기</b>를 눌러요.</li>
               <li>앞에 붙은 번호(1. &nbsp;2) &nbsp;①)는 자동으로 빠져요.</li>
             </ul>
@@ -152,7 +154,7 @@
       <div id="feedback" class="feedback" hidden aria-live="polite"></div>
 
       <p class="keys">
-        <span><kbd>Enter</kbd> 다 썼어요</span>
+        <span><kbd>Enter</kbd> 또는 마침표 뒤 <kbd>Space</kbd> 다음으로</span>
         <span><kbd>Tab</kbd> 다음 단어 힌트</span>
         <span><kbd>Esc</kbd> 정답 보기</span>
       </p>

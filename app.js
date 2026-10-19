@@ -99,12 +99,21 @@
   // ───────── 문장 붙여넣기 해석 ─────────
   const NUMBERING = /^(?:\(\d{1,3}\)|\d{1,3}[.)](?=\s)|[①-⑳❶-❿]|[-*•·▪◦►▶](?=\s))\s*/;
 
+  const ARROW = /^\s*(?:[→⇒➜➝➞➔➡⟶]|-+>|=>)\s*/;
+
   function parseText(text) {
+    const lines = text.split(/\r?\n/);
+    // "영어 문장 / → 한국어 뜻" 꼴이면, 화살표 없는 한국어 줄(예: "1. 헤어짐")은 주제 제목으로 본다
+    const arrowKo = lines.some((l) => ARROW.test(l) && HANGUL.test(l));
     const items = [];
+    const groups = [];
+    let group = null;
     let pending = null;
     let ignored = 0;
 
-    for (const raw of text.split(/\r?\n/)) {
+    for (const line of lines) {
+      const arrowed = ARROW.test(line);
+      const raw = line.replace(ARROW, '');
       let en = '';
       let ko = '';
       const sep = raw.search(/[|\t]/);
@@ -115,8 +124,8 @@
         const h = raw.search(HANGUL);
         if (h < 0) en = raw;
         else if (/[A-Za-z].*[A-Za-z]/.test(raw.slice(0, h))) {
-          // "영어 문장. 한국어 뜻" 처럼 한 줄에 같이 있는 경우
-          en = raw.slice(0, h).replace(/[\s([{:=\/-]+$/, '');
+          // "영어 문장. 한국어 뜻" / "영어 문장. → 한국어 뜻" 처럼 한 줄에 같이 있는 경우
+          en = raw.slice(0, h).replace(/[\s([{:=\/\->→⇒➜➝➞➔➡⟶]+$/, '');
           ko = raw.slice(h);
           if (!/[([]/.test(ko)) ko = ko.replace(/[)\]]+\s*$/, '');
         } else ko = raw;
@@ -124,6 +133,20 @@
       en = normSentence(en).replace(NUMBERING, '').trim();
       ko = normSentence(ko).replace(NUMBERING, '').trim();
       if (!/[A-Za-z0-9]/.test(en)) en = '';
+
+      if (arrowKo) {
+        if (en) {
+          const item = { en, ko };
+          items.push(item);
+          if (!group) groups.push((group = { title: '', items: [] }));
+          group.items.push(item);
+        } else if (ko && arrowed) {
+          const prev = items[items.length - 1];
+          if (prev && !prev.ko) prev.ko = ko;
+          else ignored++;
+        } else if (ko) groups.push((group = { title: ko, items: [] }));
+        continue;
+      }
 
       if (en) {
         const item = { en, ko };
@@ -143,7 +166,7 @@
       }
     }
     if (pending) ignored++;
-    return { items, ignored };
+    return { items, ignored, groups: groups.filter((g) => g.items.length) };
   }
 
   const ABBR_RE = /\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Mt|vs|etc|e\.g|i\.e|a\.m|p\.m|U\.S|U\.K)\.$/i;
@@ -322,28 +345,54 @@
     textInput.focus();
   }
 
+  // 주제 제목이 2개 이상이고 새로 넣는 중이면, 주제마다 세트를 따로 만들 수 있다
+  const canSplitSets = (groups) => !editingId && groups.length >= 2;
+  const autoName = (items) => {
+    const first = items[0].en;
+    return first.length > 28 ? first.slice(0, 28) + '…' : first;
+  };
+
   function renderPreview() {
-    const { items, ignored } = parseText(textInput.value);
-    $('#preview-count').textContent = `${items.length}문장`;
+    const { items, ignored, groups } = parseText(textInput.value);
+    $('#preview-count').textContent = groups.length >= 2 ? `${items.length}문장 · 주제 ${groups.length}개` : `${items.length}문장`;
     const warn = $('#preview-warn');
     warn.hidden = !ignored;
     warn.textContent = ignored ? `짝지을 영어 문장이 없는 한국어 줄 ${ignored}개는 빠졌어요.` : '';
-    $('#preview-list').innerHTML = items.length
-      ? items
-          .map((it) => `<li><span class="pv-en">${esc(it.en)}</span><span class="pv-ko${it.ko ? '' : ' none'}">${it.ko ? esc(it.ko) : '뜻 없음'}</span></li>`)
-          .join('')
-      : '<li class="pv-empty">왼쪽에 문장을 넣으면 여기에 한 문장씩 나뉘어 보여요.</li>';
+
+    const splitWrap = $('#split-sets-wrap');
+    splitWrap.hidden = !canSplitSets(groups);
+    $('#split-sets-label').textContent = `주제별로 나눠서 ${groups.length}개 세트로 저장`;
+
+    const li = (it) => `<li><span class="pv-en">${esc(it.en)}</span><span class="pv-ko${it.ko ? '' : ' none'}">${it.ko ? esc(it.ko) : '뜻 없음'}</span></li>`;
+    let html;
+    if (!items.length) html = '<li class="pv-empty">왼쪽에 문장을 넣으면 여기에 한 문장씩 나뉘어 보여요.</li>';
+    else if (groups.length >= 2)
+      html = groups.map((g) => `<li class="pv-group">${esc(g.title || '제목 없음')}<span>${g.items.length}문장</span></li>${g.items.map(li).join('')}`).join('');
+    else html = items.map(li).join('');
+    $('#preview-list').innerHTML = html;
   }
 
   function saveEditor(thenPractice) {
-    const { items } = parseText(textInput.value);
+    const { items, groups } = parseText(textInput.value);
     if (!items.length) {
       toast('영어 문장을 한 줄 이상 넣어 주세요');
       textInput.focus();
       return;
     }
-    const first = items[0].en;
-    const name = nameInput.value.trim() || (first.length > 28 ? first.slice(0, 28) + '…' : first);
+    const base = nameInput.value.trim();
+
+    if (canSplitSets(groups) && $('#split-sets').checked) {
+      const made = groups.map((g) => makeSet(g.title ? (base ? `${base} · ${g.title}` : g.title) : base || autoName(g.items), g.items));
+      db.sets.unshift(...made);
+      persist();
+      renderHome();
+      show('home');
+      if (thenPractice) openSetup(made[0].id);
+      else toast(`${made.length}개 세트로 나눠서 저장했어요`);
+      return;
+    }
+
+    const name = base || autoName(items);
     let set = editingId ? getSet(editingId) : null;
     if (set) {
       // 그대로 남은 문장은 외운 기록을 이어 간다
@@ -810,7 +859,8 @@
       return;
     }
     if (c.phase === 'feedback') {
-      if (e.key === 'Enter') {
+      // Space는 문장 끝에서 넘어가려고 연달아 누른 것일 수 있어 정답을 볼 틈을 잠깐 둔다
+      if (e.key === 'Enter' || (e.key === ' ' && performance.now() - c.endAt > 600)) {
         e.preventDefault();
         continueAfterFeedback();
       } else if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Tab') e.preventDefault();
@@ -824,6 +874,13 @@
       case 'Enter':
         e.preventDefault();
         submit();
+        break;
+      case ' ':
+        // 한컴타자처럼 문장 끝 마침표까지 치고 Space를 누르면 다음으로
+        if (atSentenceEnd(c)) {
+          e.preventDefault();
+          submit();
+        }
         break;
       case 'Tab':
         e.preventDefault();
@@ -879,6 +936,15 @@
   });
 
   // ── 판정 ──
+  // 문장 끝 문장부호(. ! ?)까지 쳤는지. 문장 안의 Mr. / p.m. / 1.5 같은 점에서는 넘어가지 않도록 개수까지 맞춰 본다
+  const END_PUNCT = /[.!?]["')\]]*$/;
+  const countPunct = (s) => (s.match(/[.!?]/g) || []).length;
+  function atSentenceEnd(c) {
+    if (!c.typed.trim()) return false;
+    if (!END_PUNCT.test(c.target)) return c.typed.length >= c.target.length;
+    return END_PUNCT.test(c.typed) && countPunct(c.typed) >= countPunct(c.target);
+  }
+
   function submit() {
     const c = S.cur;
     const typed = c.typed.replace(/\s+$/, '');
@@ -886,7 +952,7 @@
     const exact = eq(typed, c.target);
     if (!exact && c.task.stage === 1) {
       replay(card, 'shake');
-      toast('빨간 글자를 고친 다음 Enter를 눌러 주세요');
+      toast('빨간 글자를 고친 다음 넘어갈 수 있어요');
       return;
     }
     finalize(exact ? judge(c) : 'fail');
@@ -1011,7 +1077,7 @@
       <div class="fb-head"><b>${c.gaveUp ? '정답을 확인해요' : '조금 달라요'}</b><span>정답을 보고 바로 한 번 고쳐 써 봐요.</span></div>
       <div class="fb-row"><span class="fb-k">정답</span><p class="fb-v">${a}</p></div>
       ${typed ? `<div class="fb-row"><span class="fb-k">내가 쓴 것</span><p class="fb-v">${b}</p></div>` : ''}
-      <p class="fb-go"><kbd>Enter</kbd> 고쳐 쓰러 가기</p>`;
+      <p class="fb-go"><kbd>Enter</kbd> 또는 <kbd>Space</kbd> 고쳐 쓰러 가기</p>`;
     fb.hidden = false;
     card.classList.add('is-fail');
   }
