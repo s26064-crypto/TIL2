@@ -216,7 +216,7 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  padding: 20px 0 32px;
+  padding: 20px 0 24px;
 }
 .hero h1 { margin: 0 0 12px; font-size: clamp(30px, 4.4vw, 42px); font-weight: 800; }
 .lead { margin: 0; max-width: 560px; color: var(--ink-2); font-size: 16px; }
@@ -224,7 +224,8 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
 .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 12px; }
 .section-head h2 { margin: 0; font-size: 18px; }
 
-.set-list { display: grid; gap: 12px; margin-bottom: 44px; }
+.set-list { display: grid; gap: 12px; }
+.add-row { margin: 22px 0 36px; }
 .set-card {
   display: flex;
   align-items: center;
@@ -809,14 +810,19 @@ legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 700; colo
   .wrap { padding: 18px 16px 64px; }
   .topbar-in { padding: 0 16px; }
   .brand-sub { display: none; }
-  .hero { flex-direction: column; align-items: stretch; padding-top: 8px; }
+  .hero { padding-top: 8px; }
+  .add-row .btn { width: 100%; }
   .set-card { flex-direction: column; align-items: stretch; gap: 14px; }
   .set-actions .btn.primary { flex: 1; }
-  .steps { grid-template-columns: 1fr; }
+  .steps { gap: 8px; }
+  .step { padding: 14px; gap: 10px; }
   .stats, .tiles { grid-template-columns: 1fr 1fr; }
   .modes { grid-template-columns: 1fr; }
   .dialog-in { padding: 20px 16px; }
   .fb-row { grid-template-columns: 1fr; gap: 0; }
   .r-badge { width: 80px; }
   .editor-actions .btn, .result-actions .btn { flex: 1; }
+}
+@media (max-width: 420px) {
+  .steps { grid-template-columns: 1fr; }
 }
