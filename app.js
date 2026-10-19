@@ -119,74 +119,106 @@
     return -1;
   }
 
+  // 한 줄을 영어 / 뜻으로 나눈다. 한국어만 있는 줄이면 en이 빈다
+  function splitLine(line) {
+    const arrowed = ARROW.test(line);
+    const raw = line.replace(ARROW, '');
+    const numbered = NUMBERING.test(normSentence(raw));
+    let en = '';
+    let ko = '';
+    const sep = raw.search(/[|\t]/);
+    const slash = sep < 0 ? findSlashSep(raw) : -1;
+    if (sep >= 0) {
+      en = raw.slice(0, sep);
+      ko = raw.slice(sep + 1).replace(/[|\t]/g, ' ');
+    } else if (slash >= 0) {
+      en = raw.slice(0, slash);
+      ko = raw.slice(slash + 1);
+    } else {
+      const h = raw.search(HANGUL);
+      if (h < 0) en = raw;
+      else if (/[A-Za-z].*[A-Za-z]/.test(raw.slice(0, h))) {
+        // "영어 문장. 한국어 뜻" / "영어 문장. → 한국어 뜻" 처럼 한 줄에 같이 있는 경우
+        en = raw.slice(0, h).replace(/[\s([{:=\/\->→⇒➜➝➞➔➡⟶]+$/, '');
+        ko = raw.slice(h);
+        if (!/[([]/.test(ko)) ko = ko.replace(/[)\]]+\s*$/, '');
+      } else ko = raw;
+    }
+    en = normSentence(en).replace(NUMBERING, '').trim();
+    ko = normSentence(ko).replace(NUMBERING, '').trim();
+    if (!/[A-Za-z0-9]/.test(en)) en = '';
+    return { arrowed, numbered, en, ko, blank: !en && !ko };
+  }
+
   function parseText(text) {
-    const lines = text.split(/\r?\n/);
+    const toks = text.split(/\r?\n/).map(splitLine);
     // "영어 문장 / → 한국어 뜻" 꼴이면, 화살표 없는 한국어 줄(예: "1. 헤어짐")은 주제 제목으로 본다
-    const arrowKo = lines.some((l) => ARROW.test(l) && HANGUL.test(l));
+    const arrowKo = toks.some((t) => t.arrowed && t.ko && !t.en);
     const items = [];
     const groups = [];
     let group = null;
     let pending = null;
     let ignored = 0;
+    const addItem = (it) => {
+      items.push(it);
+      if (!group) groups.push((group = { title: '', items: [] }));
+      group.items.push(it);
+    };
+    const newGroup = (title) => groups.push((group = { title, items: [] }));
+    const openEn = (t) => !!(t && t.en && !t.ko); // 같은 줄에 뜻이 없는 영어 줄
+    const koOnly = (t) => !!(t && t.ko && !t.en);
 
-    for (const line of lines) {
-      const arrowed = ARROW.test(line);
-      const raw = line.replace(ARROW, '');
-      let en = '';
-      let ko = '';
-      const sep = raw.search(/[|\t]/);
-      const slash = sep < 0 ? findSlashSep(raw) : -1;
-      if (sep >= 0) {
-        en = raw.slice(0, sep);
-        ko = raw.slice(sep + 1).replace(/[|\t]/g, ' ');
-      } else if (slash >= 0) {
-        en = raw.slice(0, slash);
-        ko = raw.slice(slash + 1);
-      } else {
-        const h = raw.search(HANGUL);
-        if (h < 0) en = raw;
-        else if (/[A-Za-z].*[A-Za-z]/.test(raw.slice(0, h))) {
-          // "영어 문장. 한국어 뜻" / "영어 문장. → 한국어 뜻" 처럼 한 줄에 같이 있는 경우
-          en = raw.slice(0, h).replace(/[\s([{:=\/\->→⇒➜➝➞➔➡⟶]+$/, '');
-          ko = raw.slice(h);
-          if (!/[([]/.test(ko)) ko = ko.replace(/[)\]]+\s*$/, '');
-        } else ko = raw;
-      }
-      en = normSentence(en).replace(NUMBERING, '').trim();
-      ko = normSentence(ko).replace(NUMBERING, '').trim();
-      if (!/[A-Za-z0-9]/.test(en)) en = '';
+    // 화살표가 없을 때: 뜻 줄이 대개 영어 바로 아래에 오는지, 바로 위에 오는지 세어서 정한다
+    let below = 0;
+    let above = 0;
+    toks.forEach((t, i) => {
+      if (!koOnly(t)) return;
+      if (openEn(toks[i - 1])) below++;
+      if (openEn(toks[i + 1])) above++;
+    });
+    const koFirst = above > below;
 
-      if (arrowKo) {
-        if (en) {
-          const item = { en, ko };
-          items.push(item);
-          if (!group) groups.push((group = { title: '', items: [] }));
-          group.items.push(item);
-        } else if (ko && arrowed) {
-          const prev = items[items.length - 1];
-          if (prev && !prev.ko) prev.ko = ko;
-          else ignored++;
-        } else if (ko) groups.push((group = { title: ko, items: [] }));
-        continue;
-      }
-
-      if (en) {
-        const item = { en, ko };
-        if (!ko && pending) {
-          item.ko = pending;
+    toks.forEach((t, i) => {
+      if (t.blank) return;
+      if (t.en) {
+        const it = { en: t.en, ko: t.ko };
+        if (!it.ko && pending) {
+          it.ko = pending;
           pending = null;
         }
-        items.push(item);
-      } else if (ko) {
-        // 한국어만 있는 줄 → 바로 위 영어 문장의 뜻, 아니면 다음 영어 문장의 뜻
-        const prev = items[items.length - 1];
-        if (prev && !prev.ko && !pending) prev.ko = ko;
-        else {
-          if (pending) ignored++;
-          pending = ko;
-        }
+        addItem(it);
+        return;
       }
-    }
+      const prevItem = items[items.length - 1];
+
+      if (arrowKo) {
+        if (!t.arrowed) newGroup(t.ko);
+        else if (prevItem && !prevItem.ko) prevItem.ko = t.ko;
+        else ignored++;
+        return;
+      }
+
+      // 한국어만 있는 줄: 바로 위 영어의 뜻 / 바로 아래 영어의 뜻 / 주제 제목 중 하나
+      const prev = toks[i - 1];
+      const next = toks[i + 1];
+      const toPrev = openEn(prev) && prevItem && !prevItem.ko;
+      // 아래 영어 줄이 자기 뜻을 그 밑에 따로 갖고 있으면(영어 → 뜻 순서) 이 줄은 그 영어의 뜻이 아니다
+      const toNext = openEn(next) && (koFirst || !koOnly(toks[i + 2]));
+      const hold = () => {
+        if (pending) ignored++;
+        pending = t.ko;
+      };
+      if (koFirst ? toNext : toPrev) {
+        if (koFirst) hold();
+        else prevItem.ko = t.ko;
+      } else if (koFirst ? toPrev : toNext) {
+        if (koFirst) prevItem.ko = t.ko;
+        else hold();
+      } else if (!prev || prev.blank || t.numbered || (koFirst ? koOnly(next) && openEn(toks[i + 2]) : openEn(next))) {
+        // 빈 줄 다음, 번호 붙은 줄, 또는 앞 문장 짝이 끝나고 새 문장 짝이 시작되기 직전 줄은 주제 제목
+        newGroup(t.ko);
+      } else ignored++;
+    });
     if (pending) ignored++;
     return { items, ignored, groups: groups.filter((g) => g.items.length) };
   }
@@ -511,16 +543,183 @@
   const nameInput = $('#set-name');
   const textInput = $('#set-text');
 
+  const editorGrid = $('#editor-grid');
+  const rowsBox = $('#rows');
+  let editorMode = db.settings.editorMode === 'paste' ? 'paste' : 'rows';
+  const toLine = (it) => (it.ko ? `${it.en} | ${it.ko}` : it.en);
+
   function openEditor(id) {
     editingId = id || null;
     const set = id ? getSet(id) : null;
     $('#editor-title').textContent = set ? '문장 세트 수정' : '문장 넣기';
     nameInput.value = set ? set.name : '';
-    textInput.value = set ? set.sentences.map((s) => (s.ko ? `${s.en} | ${s.ko}` : s.en)).join('\n') : '';
-    renderPreview();
+    const items = set ? set.sentences.map((s) => ({ en: s.en, ko: s.ko })) : [];
+    textInput.value = items.map(toLine).join('\n');
+    setRows(items);
+    setEditorMode(editorMode, false);
     show('editor');
-    textInput.focus();
+    if (editorMode === 'paste') textInput.focus();
+    else if (!set) rowsBox.querySelector('.row-en').focus();
   }
+
+  // ── 칸에 쓰기 ──
+  const DEL_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
+  function rowEl(en = '', ko = '') {
+    const li = document.createElement('li');
+    li.className = 'row';
+    li.innerHTML =
+      '<span class="row-no"></span>' +
+      '<input class="row-en" type="text" placeholder="영어 문장" lang="en" spellcheck="false" autocomplete="off" aria-label="영어 문장">' +
+      '<input class="row-ko" type="text" placeholder="뜻 (안 써도 돼요)" autocomplete="off" aria-label="뜻">' +
+      `<button type="button" class="icon-btn row-del" aria-label="이 줄 지우기">${DEL_ICON}</button>`;
+    li.querySelector('.row-en').value = en;
+    li.querySelector('.row-ko').value = ko;
+    return li;
+  }
+
+  const isBlankRow = (li) => !li.querySelector('.row-en').value.trim() && !li.querySelector('.row-ko').value.trim();
+
+  // 새로 넣을 땐 빈 줄 3개, 고칠 땐 문장들 + 이어 쓸 빈 줄 하나
+  function setRows(items) {
+    const rows = items.map((it) => rowEl(it.en, it.ko));
+    rows.push(...Array.from({ length: items.length ? 1 : 3 }, () => rowEl()));
+    rowsBox.replaceChildren(...rows);
+    refreshRows();
+  }
+
+  function rowsData() {
+    const items = [];
+    let missing = 0;
+    for (const li of rowsBox.children) {
+      const en = normSentence(li.querySelector('.row-en').value).replace(NUMBERING, '').trim();
+      const ko = normSentence(li.querySelector('.row-ko').value);
+      const ok = /[A-Za-z0-9]/.test(en);
+      li.classList.toggle('warn', !ok && !!(en || ko));
+      if (ok) items.push({ en, ko });
+      else if (en || ko) missing++;
+    }
+    return { items, missing };
+  }
+
+  function refreshRows() {
+    [...rowsBox.children].forEach((li, i) => (li.querySelector('.row-no').textContent = i + 1));
+    const { items, missing } = rowsData();
+    $('#rows-count').textContent = `${items.length}문장` + (missing ? ` · 영어가 없는 줄 ${missing}개는 저장 안 돼요` : '');
+  }
+
+  function addRow(after) {
+    const li = rowEl();
+    if (after) after.after(li);
+    else rowsBox.append(li);
+    refreshRows();
+    li.querySelector('.row-en').focus();
+    return li;
+  }
+
+  rowsBox.addEventListener('input', refreshRows);
+
+  rowsBox.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229) return; // 한글 조합 중 Enter는 글자 확정용
+    const li = e.target.closest('.row');
+    if (!li || e.target.tagName !== 'INPUT') return;
+    const inEn = e.target.classList.contains('row-en');
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (inEn) li.querySelector('.row-ko').focus();
+      else if (li.nextElementSibling) li.nextElementSibling.querySelector('.row-en').focus();
+      else addRow();
+    } else if (e.key === 'Backspace' && inEn && isBlankRow(li) && rowsBox.children.length > 1) {
+      // 빈 줄에서 지우기를 누르면 그 줄을 없애고 윗줄로
+      e.preventDefault();
+      const prev = li.previousElementSibling;
+      const next = li.nextElementSibling;
+      li.remove();
+      refreshRows();
+      if (prev) prev.querySelector('.row-ko').focus();
+      else next.querySelector('.row-en').focus();
+    }
+  });
+
+  rowsBox.addEventListener('click', (e) => {
+    const del = e.target.closest('.row-del');
+    if (!del) return;
+    const li = del.closest('.row');
+    if (rowsBox.children.length > 1) {
+      const next = li.nextElementSibling || li.previousElementSibling;
+      li.remove();
+      next.querySelector('.row-en').focus();
+    } else {
+      li.querySelector('.row-en').value = '';
+      li.querySelector('.row-ko').value = '';
+      li.querySelector('.row-en').focus();
+    }
+    refreshRows();
+  });
+
+  // 여러 줄을 붙여 넣으면 붙여넣기 방식과 똑같이 읽어서 한 줄씩 칸에 나눠 넣는다
+  rowsBox.addEventListener('paste', (e) => {
+    const field = e.target;
+    if (!field.matches || !field.matches('.row-en, .row-ko')) return;
+    const text = (e.clipboardData && e.clipboardData.getData('text')) || '';
+    const li = field.closest('.row');
+    if (!/\r?\n/.test(text.trim())) {
+      // 한 줄에 "영어 / 뜻"이 같이 있으면 빈 영어 칸에 붙일 때 두 칸에 나눠 넣는다
+      if (field.matches('.row-en') && isBlankRow(li)) {
+        const { items } = parseText(text);
+        if (items.length === 1 && items[0].ko) {
+          e.preventDefault();
+          li.querySelector('.row-en').value = items[0].en;
+          li.querySelector('.row-ko').value = items[0].ko;
+          refreshRows();
+        }
+      }
+      return;
+    }
+    const { items } = parseText(text);
+    if (!items.length) return;
+    e.preventDefault();
+    const rows = items.map((it) => rowEl(it.en, it.ko));
+    li.after(...rows);
+    for (const r of [...rowsBox.children]) if (isBlankRow(r)) r.remove();
+    const tail = rowEl();
+    rowsBox.append(tail);
+    refreshRows();
+    tail.querySelector('.row-en').focus();
+    toast(`${items.length}문장을 한 줄씩 나눠 넣었어요`);
+  });
+
+  $('#add-row-btn').addEventListener('click', () => {
+    const blank = [...rowsBox.children].find(isBlankRow);
+    if (blank) blank.querySelector('.row-en').focus();
+    else addRow();
+  });
+
+  // ── 넣는 방식 바꾸기 (지금까지 쓴 건 옮겨 간다) ──
+  function setEditorMode(mode, carry = true) {
+    if (carry && mode !== editorMode) {
+      if (mode === 'paste') textInput.value = rowsData().items.map(toLine).join('\n');
+      else {
+        const { items, groups } = parseText(textInput.value);
+        setRows(items);
+        if (groups.length >= 2) toast('주제별로 나눠 저장하려면 "한꺼번에 붙여넣기"에서 저장해 주세요', 3500);
+      }
+    }
+    editorMode = mode;
+    for (const r of document.querySelectorAll('input[name="editor-mode"]')) r.checked = r.value === mode;
+    $('#rows-mode').hidden = mode !== 'rows';
+    $('#paste-mode').hidden = mode !== 'paste';
+    $('#preview-panel').hidden = mode !== 'paste';
+    editorGrid.classList.toggle('one-col', mode === 'rows');
+    if (mode === 'paste') renderPreview();
+    else refreshRows();
+    if (db.settings.editorMode !== mode) {
+      db.settings.editorMode = mode;
+      persist();
+    }
+  }
+
+  for (const r of document.querySelectorAll('input[name="editor-mode"]')) r.addEventListener('change', () => setEditorMode(r.value));
 
   // 주제 제목이 2개 이상이고 새로 넣는 중이면, 주제마다 세트를 따로 만들 수 있다
   const canSplitSets = (groups) => !editingId && groups.length >= 2;
@@ -550,10 +749,11 @@
   }
 
   function saveEditor(thenPractice) {
-    const { items, groups } = parseText(textInput.value);
+    const { items, groups } = editorMode === 'rows' ? { items: rowsData().items, groups: [] } : parseText(textInput.value);
     if (!items.length) {
       toast('영어 문장을 한 줄 이상 넣어 주세요');
-      textInput.focus();
+      if (editorMode === 'rows') rowsBox.querySelector('.row-en').focus();
+      else textInput.focus();
       return;
     }
     const base = nameInput.value.trim();
@@ -601,10 +801,15 @@
     const after = parseText(textInput.value).items.length;
     toast(after > before ? `${after}문장으로 나눴어요` : '더 나눌 문단이 없어요');
   });
-  $('#sample-btn').addEventListener('click', () => {
-    textInput.value = textInput.value.trim() ? textInput.value.replace(/\s*$/, '\n') + SAMPLE_TEXT : SAMPLE_TEXT;
-    renderPreview();
-  });
+  for (const b of document.querySelectorAll('[data-sample]'))
+    b.addEventListener('click', () => {
+      if (editorMode === 'rows') {
+        setRows([...rowsData().items, ...parseText(SAMPLE_TEXT).items]);
+        return;
+      }
+      textInput.value = textInput.value.trim() ? textInput.value.replace(/\s*$/, '\n') + SAMPLE_TEXT : SAMPLE_TEXT;
+      renderPreview();
+    });
   $('#save-btn').addEventListener('click', () => saveEditor(false));
   $('#save-practice-btn').addEventListener('click', () => saveEditor(true));
 
