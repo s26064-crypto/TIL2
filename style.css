@@ -692,6 +692,20 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
 .dialog.small { width: min(420px, calc(100vw - 32px)); }
 .dialog.small h2 { margin: 0; font-size: 19px; }
 .confirm-msg { margin: 6px 0 0; color: var(--ink-2); }
+.share-url {
+  width: 100%;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+  outline: none;
+}
+.share-url:focus { border-color: var(--accent); }
+.import-list { max-height: 280px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 12px; }
+.dialog-foot { flex-wrap: wrap; }
 .btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn.danger-solid:hover { background: var(--bad); filter: brightness(1.08); }
 .dialog::backdrop { background: rgba(14, 14, 20, 0.45); backdrop-filter: blur(2px); }

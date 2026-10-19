@@ -3,6 +3,8 @@
 (() => {
   // ───────── 기본값 ─────────
   const STORE_KEY = 'wewotaja.v1';
+  // 내 컴퓨터(file://, localhost)에서 만든 공유 링크도 친구가 열 수 있게, 그때는 깃허브 페이지 주소를 쓴다
+  const PUBLIC_URL = 'https://s26064-crypto.github.io/TIL2/';
 
   const STAGE = {
     1: { name: '따라 쓰기', desc: '문장을 보면서 그대로 따라 써요. 눈과 손으로 먼저 익혀요.' },
@@ -303,6 +305,7 @@
             <div class="set-actions">
               <button class="btn primary" type="button" data-action="practice">연습하기</button>
               <button class="btn ghost" type="button" data-action="edit">수정</button>
+              <button class="btn ghost" type="button" data-action="share">공유</button>
               <button class="btn ghost danger" type="button" data-action="delete">삭제</button>
             </div>
           </article>`;
@@ -333,6 +336,9 @@
       case 'practice':
         openSetup(id);
         break;
+      case 'share':
+        openShare(id);
+        break;
       case 'edit':
         openEditor(id);
         break;
@@ -350,6 +356,144 @@
       }
     }
   });
+
+  const previewItem = (it) => `<li><span class="pv-en">${esc(it.en)}</span><span class="pv-ko${it.ko ? '' : ' none'}">${it.ko ? esc(it.ko) : '뜻 없음'}</span></li>`;
+
+  // ───────── 세트 공유 ─────────
+  // 서버가 없으니 세트를 링크 # 뒤에 담는다 (# 뒤는 서버로 안 감). 줄일 수 있으면 deflate로 줄인다
+  const b64url = {
+    enc(bytes) {
+      let s = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    },
+    dec(str) {
+      const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+      const s = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+      const out = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+      return out;
+    },
+  };
+  const pipeBytes = async (bytes, stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+
+  async function encodeSet(set) {
+    const data = { v: 1, n: set.name, s: set.sentences.map((x) => (x.ko ? [x.en, x.ko] : [x.en])) };
+    const bytes = new TextEncoder().encode(JSON.stringify(data));
+    if ('CompressionStream' in window) {
+      try {
+        return 'z' + b64url.enc(await pipeBytes(bytes, new CompressionStream('deflate')));
+      } catch (e) {
+        /* 못 줄이면 그냥 담는다 */
+      }
+    }
+    return 'j' + b64url.enc(bytes);
+  }
+
+  // 링크에서 온 값은 남이 만든 것이니 모양을 확인하고 정리해서만 쓴다
+  async function decodeShared(code) {
+    const bytes = b64url.dec(code.slice(1));
+    let raw;
+    if (code[0] === 'z') raw = await pipeBytes(bytes, new DecompressionStream('deflate'));
+    else if (code[0] === 'j') raw = bytes;
+    else throw new Error('unknown');
+    const data = JSON.parse(new TextDecoder().decode(raw));
+    if (!data || !Array.isArray(data.s)) throw new Error('shape');
+    const items = data.s
+      .filter(Array.isArray)
+      .slice(0, 500)
+      .map(([en, ko]) => ({ en: normSentence(String(en || '')), ko: normSentence(String(ko || '')) }))
+      .filter((it) => /[A-Za-z0-9]/.test(it.en));
+    if (!items.length) throw new Error('empty');
+    return { name: normSentence(String(data.n || '')).slice(0, 60) || '공유받은 문장', items };
+  }
+
+  function shareBase() {
+    const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    return local ? PUBLIC_URL : location.origin + location.pathname;
+  }
+
+  const shareDlg = $('#share');
+  const shareUrl = $('#share-url');
+  const shareCopy = $('#share-copy');
+  let sharing = null;
+
+  async function openShare(id) {
+    const set = getSet(id);
+    if (!set) return;
+    if (!set.sentences.length) {
+      toast('공유할 문장이 없어요');
+      return;
+    }
+    const url = shareBase() + '#s=' + (await encodeSet(set));
+    sharing = { name: set.name, url };
+    $('#share-title').textContent = `'${set.name}' 공유하기`;
+    $('#share-msg').textContent = `이 링크를 연 친구는 같은 ${set.sentences.length}문장을 자기 세트로 추가할 수 있어요. 외운 기록은 같이 가지 않아요.`;
+    shareUrl.value = url;
+    shareCopy.textContent = '링크 복사';
+    $('#share-native').hidden = !navigator.share;
+    shareDlg.showModal();
+    shareUrl.select();
+  }
+
+  shareUrl.addEventListener('focus', () => shareUrl.select());
+  shareCopy.addEventListener('click', async () => {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(shareUrl.value);
+      ok = true;
+    } catch (e) {
+      shareUrl.focus();
+      shareUrl.select();
+      try {
+        ok = document.execCommand('copy');
+      } catch (e2) {
+        ok = false;
+      }
+    }
+    // 창이 떠 있는 동안엔 아래 알림이 창 뒤로 가려지니 버튼 글자로 알려 준다
+    shareCopy.textContent = ok ? '복사했어요 ✓' : '위 링크를 직접 복사해 주세요';
+    if (!ok) shareUrl.select();
+  });
+  $('#share-native').addEventListener('click', () => {
+    if (sharing && navigator.share) navigator.share({ title: `외워타자 · ${sharing.name}`, url: sharing.url }).catch(() => {});
+  });
+
+  // 공유 링크로 들어오면 세트를 보여 주고 추가할지 묻는다
+  const importDlg = $('#import');
+  async function checkSharedLink() {
+    const m = location.hash.match(/^#s=([A-Za-z0-9_-]+)$/);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search); // 새로 고침해도 또 묻지 않게
+    let shared;
+    try {
+      shared = await decodeShared(m[1]);
+    } catch (e) {
+      toast('공유 링크를 읽지 못했어요. 링크가 중간에 잘리지 않았는지 확인해 주세요', 4000);
+      return;
+    }
+    if (view !== 'home') goHome();
+    const { name, items } = shared;
+    const same = db.sets.some((s) => s.name === name && s.sentences.length === items.length && s.sentences.every((x, i) => x.en === items[i].en));
+    $('#import-title').textContent = name;
+    $('#import-msg').textContent = `${items.length}문장` + (same ? ' · 이미 같은 세트가 있어요. 추가하면 하나 더 생겨요.' : '');
+    $('#import-list').innerHTML = items.map(previewItem).join('');
+    importDlg.returnValue = '';
+    importDlg.showModal();
+    importDlg.addEventListener(
+      'close',
+      () => {
+        if (importDlg.returnValue !== 'ok') return;
+        const set = makeSet(name, items);
+        db.sets.unshift(set);
+        persist();
+        renderHome();
+        openSetup(set.id);
+      },
+      { once: true }
+    );
+  }
+  window.addEventListener('hashchange', checkSharedLink);
 
   // 브라우저 기본 confirm()은 앱 안 브라우저 등에서 창 없이 바로 '취소'가 돼 버려서, 페이지 안의 창으로 묻는다
   const confirmDlg = $('#confirm');
@@ -396,7 +540,7 @@
     splitWrap.hidden = !canSplitSets(groups);
     $('#split-sets-label').textContent = `주제별로 나눠서 ${groups.length}개 세트로 저장`;
 
-    const li = (it) => `<li><span class="pv-en">${esc(it.en)}</span><span class="pv-ko${it.ko ? '' : ' none'}">${it.ko ? esc(it.ko) : '뜻 없음'}</span></li>`;
+    const li = previewItem;
     let html;
     if (!items.length) html = '<li class="pv-empty">왼쪽에 문장을 넣으면 여기에 한 문장씩 나뉘어 보여요.</li>';
     else if (groups.length >= 2)
@@ -1233,4 +1377,5 @@
   // ───────── 시작 ─────────
   renderHome();
   show('home');
+  checkSharedLink();
 })();
