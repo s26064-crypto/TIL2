@@ -688,6 +688,11 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
   color: var(--ink);
   box-shadow: 0 30px 80px -24px rgba(0, 0, 0, 0.45);
 }
+.dialog.small { width: min(420px, calc(100vw - 32px)); }
+.dialog.small h2 { margin: 0; font-size: 19px; }
+.confirm-msg { margin: 6px 0 0; color: var(--ink-2); }
+.btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.danger-solid:hover { background: var(--bad); filter: brightness(1.08); }
 .dialog::backdrop { background: rgba(14, 14, 20, 0.45); backdrop-filter: blur(2px); }
 .dialog-in { display: flex; flex-direction: column; gap: 20px; padding: 24px; }
 .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }

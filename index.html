@@ -275,6 +275,20 @@
     </form>
   </dialog>
 
+  <!-- ───────── 확인 창 (브라우저 기본 confirm 창은 막혀 있는 곳이 있어서 직접 만든다) ───────── -->
+  <dialog id="confirm" class="dialog small">
+    <form method="dialog" class="dialog-in">
+      <div>
+        <h2 id="confirm-title">정말 할까요?</h2>
+        <p id="confirm-msg" class="confirm-msg"></p>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn ghost" value="cancel" autofocus>취소</button>
+        <button class="btn danger-solid" value="ok" id="confirm-ok">확인</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
