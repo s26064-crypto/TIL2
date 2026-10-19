@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>외워타자</title>
+  <meta name="description" content="외우고 싶은 영어 문장을 넣고, 한컴타자처럼 따라 쓰다 보면 외워지는 4단계 문장 타자 연습">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-view="home">
+  <header class="topbar">
+    <div class="topbar-in">
+      <button class="brand" type="button" data-go="home" aria-label="처음 화면으로">
+        <span class="keycap" aria-hidden="true">외</span>
+        <span class="brand-name">외워타자</span>
+      </button>
+      <span class="brand-sub">따라 쓰며 외우는 영어 문장</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- ───────── 홈 ───────── -->
+    <section id="view-home" class="view">
+      <div class="hero">
+        <div class="hero-text">
+          <h1>따라 쓰다 보면<br>외워지는 영어 문장</h1>
+          <p class="lead">외우고 싶은 영어 문장을 넣어 두면, 보면서 따라 쓰기부터 안 보고 쓰기까지 문장을 조금씩 가려 가며 4단계로 연습해요.</p>
+        </div>
+        <button class="btn primary lg" type="button" data-action="new-set">＋ 문장 넣기</button>
+      </div>
+
+      <div class="section-head">
+        <h2>내 문장 세트</h2>
+      </div>
+      <div id="set-list" class="set-list"></div>
+
+      <div class="section-head">
+        <h2>이렇게 외워져요</h2>
+      </div>
+      <ol class="steps">
+        <li class="step" style="--sc: var(--s1)">
+          <span class="step-no">1</span>
+          <div><h3>따라 쓰기</h3><p>문장을 보면서 그대로 따라 써요.</p></div>
+          <code class="step-ex">I'd like to make a reservation.</code>
+        </li>
+        <li class="step" style="--sc: var(--s2)">
+          <span class="step-no">2</span>
+          <div><h3>빈칸 채우기</h3><p>절반쯤 가려진 단어를 떠올려 채워요.</p></div>
+          <code class="step-ex">I'd like to <u>____</u> a <u>___________</u>.</code>
+        </li>
+        <li class="step" style="--sc: var(--s3)">
+          <span class="step-no">3</span>
+          <div><h3>첫 글자 힌트</h3><p>단어 첫 글자만 보고 문장을 떠올려요.</p></div>
+          <code class="step-ex">I<u>__</u> l<u>___</u> t<u>_</u> m<u>___</u> a r<u>__________</u>.</code>
+        </li>
+        <li class="step" style="--sc: var(--s4)">
+          <span class="step-no">4</span>
+          <div><h3>외워 쓰기</h3><p>뜻만 보고 처음부터 끝까지 써요.</p></div>
+          <code class="step-ex"><span class="ex-ko">예약하고 싶어요.</span> → <span class="ex-caret"></span></code>
+        </li>
+      </ol>
+      <p class="steps-note">틀린 문장은 정답을 보고 바로 한 번 고쳐 쓰고, 마지막에 복습으로 다시 나와요. 외워 쓰기를 통과한 문장은 <b>외운 문장</b>으로 기록돼요.</p>
+    </section>
+
+    <!-- ───────── 문장 넣기 ───────── -->
+    <section id="view-editor" class="view" hidden>
+      <div class="page-head">
+        <button class="btn ghost sm" type="button" data-go="home">← 목록</button>
+        <h1 id="editor-title">문장 넣기</h1>
+      </div>
+
+      <div class="editor-grid">
+        <div class="panel">
+          <label class="field">
+            <span class="field-k">세트 이름</span>
+            <input id="set-name" type="text" maxlength="60" placeholder="예: 영어 수행평가 본문" autocomplete="off">
+          </label>
+          <label class="field grow">
+            <span class="field-k">문장</span>
+            <textarea id="set-text" spellcheck="false" placeholder="I'd like to make a reservation. | 예약하고 싶어요.&#10;Could you do me a favor?&#10;부탁 하나 해도 될까요?"></textarea>
+          </label>
+          <div class="editor-tools">
+            <button class="btn sm" type="button" id="split-btn">문단 → 문장 나누기</button>
+            <button class="btn ghost sm" type="button" id="sample-btn">예시 문장 넣기</button>
+          </div>
+          <div class="howto">
+            <p class="howto-title">넣는 방법</p>
+            <ul>
+              <li>한 줄에 영어 문장 하나씩 넣어요.</li>
+              <li>뜻도 같이 외우려면 같은 줄에 <code>|</code> 를 넣고 뜻을 써요. <span class="muted">예) Practice makes perfect. | 연습이 완벽을 만든다.</span></li>
+              <li>영어 줄 바로 아래(또는 위) 줄에 한국어 뜻을 써도 알아서 짝지어 줘요.</li>
+              <li>문단을 통째로 붙여 넣었다면 <b>문단 → 문장 나누기</b>를 눌러요.</li>
+              <li>앞에 붙은 번호(1. &nbsp;2) &nbsp;①)는 자동으로 빠져요.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="panel preview">
+          <div class="preview-head">
+            <h2>미리보기</h2>
+            <span id="preview-count" class="pill">0문장</span>
+          </div>
+          <p id="preview-warn" class="preview-warn" hidden></p>
+          <ol id="preview-list" class="preview-list"></ol>
+        </div>
+      </div>
+
+      <div class="editor-actions">
+        <button class="btn ghost" type="button" data-go="home">취소</button>
+        <button class="btn" type="button" id="save-btn">저장</button>
+        <button class="btn primary" type="button" id="save-practice-btn">저장하고 연습하기</button>
+      </div>
+    </section>
+
+    <!-- ───────── 연습 ───────── -->
+    <section id="view-practice" class="view" hidden>
+      <div class="p-top">
+        <div class="p-title">
+          <span id="p-chip" class="stage-chip s1">1단계 · 따라 쓰기</span>
+          <span id="p-set" class="p-set"></span>
+        </div>
+        <div class="p-tools">
+          <span id="p-hints" class="p-hints" hidden></span>
+          <span id="p-count" class="p-count">1 / 1</span>
+          <button type="button" class="icon-btn" id="speak-btn" title="문장 듣기 (2단계부터는 힌트로 쳐요)" aria-label="문장 듣기">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+          </button>
+          <button type="button" class="btn ghost sm" id="quit-btn">그만하기</button>
+        </div>
+      </div>
+      <div class="progress" aria-hidden="true"><i id="p-bar"></i></div>
+
+      <div id="card" class="type-card">
+        <p id="p-meaning" class="meaning" hidden></p>
+        <p id="p-cue" class="cue" hidden></p>
+        <div id="p-line" class="line" aria-hidden="true"></div>
+        <input id="p-input" class="ghost-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" lang="en" aria-label="영어 문장 입력">
+        <p id="ime-warn" class="ime-warn" hidden>한글로 입력되고 있어요 — <kbd>한/영</kbd> 키를 눌러 영어로 바꿔 주세요</p>
+        <button type="button" id="veil" class="veil">여기를 누르면 이어서 쳐요</button>
+        <div id="intro" class="intro" hidden>
+          <span id="intro-chip" class="stage-chip lg s1">1단계</span>
+          <h2 id="intro-title">따라 쓰기</h2>
+          <p id="intro-desc"></p>
+          <button type="button" class="btn primary" id="intro-go">시작하기 <kbd class="on-primary">Enter</kbd></button>
+        </div>
+      </div>
+
+      <div id="feedback" class="feedback" hidden aria-live="polite"></div>
+
+      <p class="keys">
+        <span><kbd>Enter</kbd> 다 썼어요</span>
+        <span><kbd>Tab</kbd> 다음 단어 힌트</span>
+        <span><kbd>Esc</kbd> 정답 보기</span>
+      </p>
+
+      <div class="stats">
+        <div class="stat" style="--mc: var(--s1)">
+          <span class="stat-k">현재 타수</span>
+          <b class="stat-v" id="st-cpm">0</b>
+          <div class="meter"><i id="st-cpm-bar"></i></div>
+        </div>
+        <div class="stat" style="--mc: var(--s2)">
+          <span class="stat-k">최고 타수</span>
+          <b class="stat-v" id="st-best">0</b>
+          <div class="meter"><i id="st-best-bar"></i></div>
+        </div>
+        <div class="stat" style="--mc: var(--s4)">
+          <span class="stat-k">정확도</span>
+          <b class="stat-v"><span id="st-acc">100</span><small>%</small></b>
+          <div class="meter"><i id="st-acc-bar"></i></div>
+        </div>
+        <div class="stat" style="--mc: var(--s3)">
+          <span class="stat-k">진행도</span>
+          <b class="stat-v"><span id="st-prog">0</span><small>%</small></b>
+          <div class="meter"><i id="st-prog-bar"></i></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 결과 ───────── -->
+    <section id="view-result" class="view" hidden>
+      <div class="result-head">
+        <p id="r-set" class="eyebrow"></p>
+        <h1 id="r-title">연습 완료!</h1>
+        <p id="r-sub" class="lead"></p>
+      </div>
+      <div class="tiles">
+        <div class="tile"><span>평균 타수</span><b id="r-cpm">0</b></div>
+        <div class="tile"><span>최고 타수</span><b id="r-best">0</b></div>
+        <div class="tile"><span>정확도</span><b id="r-acc">0%</b></div>
+        <div class="tile"><span>걸린 시간</span><b id="r-time">0초</b></div>
+      </div>
+      <div id="r-mem" class="panel">
+        <div class="panel-head">
+          <h2>암기 결과</h2>
+          <span id="r-mem-sum" class="pill"></span>
+        </div>
+        <ol id="r-list" class="r-list"></ol>
+      </div>
+      <div class="result-actions">
+        <button class="btn ghost" type="button" data-go="home">목록으로</button>
+        <button class="btn" type="button" id="r-again">같은 설정으로 다시</button>
+        <button class="btn primary" type="button" id="r-weak">못 외운 문장만 다시</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ───────── 연습 설정 ───────── -->
+  <dialog id="setup" class="dialog">
+    <form id="setup-form" method="dialog" class="dialog-in">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">연습 설정</p>
+          <h2 id="setup-title">세트</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="닫기">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+
+      <fieldset class="modes">
+        <legend>연습 방식</legend>
+        <label class="opt wide"><input type="radio" name="mode" value="steps"><span class="opt-body"><b>단계별 암기 <em class="badge">추천</em></b><small>따라 쓰기 → 빈칸 → 첫 글자 → 외워 쓰기 순서로 점점 가려 가며 외워요</small></span></label>
+        <label class="opt"><input type="radio" name="mode" value="copy"><span class="opt-body"><b>따라 쓰기만</b><small>보면서 타자 연습</small></span></label>
+        <label class="opt"><input type="radio" name="mode" value="cloze"><span class="opt-body"><b>빈칸 채우기만</b><small>가려진 단어 떠올리기</small></span></label>
+        <label class="opt"><input type="radio" name="mode" value="initials"><span class="opt-body"><b>첫 글자 힌트만</b><small>첫 글자 보고 문장 쓰기</small></span></label>
+        <label class="opt"><input type="radio" name="mode" value="recall"><span class="opt-body"><b>외워 쓰기 시험</b><small>뜻만 보고 바로 써 보기</small></span></label>
+      </fieldset>
+
+      <fieldset id="flow-field" class="seg-field">
+        <legend>진행 순서</legend>
+        <div class="seg">
+          <label><input type="radio" name="flow" value="round"><span>전체를 한 단계씩</span></label>
+          <label><input type="radio" name="flow" value="focus"><span>한 문장씩 끝까지</span></label>
+        </div>
+        <p id="flow-note" class="field-note"></p>
+      </fieldset>
+
+      <fieldset class="seg-field">
+        <legend>문장 범위</legend>
+        <div class="seg">
+          <label><input type="radio" name="scope" value="all"><span>전체 <i id="scope-all-n"></i></span></label>
+          <label><input type="radio" name="scope" value="unmastered"><span>못 외운 문장만 <i id="scope-un-n"></i></span></label>
+        </div>
+      </fieldset>
+
+      <fieldset id="tol-field" class="seg-field">
+        <legend>통과 기준 — 허용 오타</legend>
+        <div class="seg">
+          <label><input type="radio" name="tolerance" value="0"><span>0개</span></label>
+          <label><input type="radio" name="tolerance" value="1"><span>1개</span></label>
+          <label><input type="radio" name="tolerance" value="2"><span>2개</span></label>
+          <label><input type="radio" name="tolerance" value="3"><span>3개</span></label>
+        </div>
+        <p class="field-note">마지막 단계에서 오타가 이보다 많거나 힌트를 쓰면, 맞혀도 복습에 한 번 더 나와요.</p>
+      </fieldset>
+
+      <fieldset class="checks">
+        <legend>옵션</legend>
+        <label class="check"><input type="checkbox" name="shuffle"><span>문장 순서 섞기</span></label>
+        <label class="check"><input type="checkbox" name="ignoreCase"><span>대소문자 구분 안 하기</span></label>
+        <label class="check"><input type="checkbox" name="speak"><span>다 쓰면 소리 내어 읽어 주기</span></label>
+      </fieldset>
+
+      <div class="dialog-foot">
+        <button class="btn ghost" type="button" data-close>취소</button>
+        <button class="btn primary" value="start">연습 시작</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
