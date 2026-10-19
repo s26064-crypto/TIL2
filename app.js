@@ -26,7 +26,7 @@
     focus: '한 문장을 4단계까지 끝내고 다음 문장으로 넘어가요. 문장이 적을 때나 하나씩 확실히 외우고 싶을 때 좋아요.',
   };
 
-  const DEFAULT_SETTINGS = { mode: 'steps', flow: 'round', scope: 'all', shuffle: false, ignoreCase: false, speak: false, tolerance: 2 };
+  const DEFAULT_SETTINGS = { mode: 'steps', flow: 'round', scope: 'all', shuffle: false, ignoreCase: false, speak: false, hideMeaning: false, tolerance: 2 };
 
   const SAMPLE_NAME = '자주 쓰는 영어 문장 (예시)';
   const SAMPLE_TEXT = [
@@ -283,20 +283,22 @@
     };
   }
 
+  let askedPersist = false;
   function persist() {
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(db));
     } catch (e) {
       /* 사생활 보호 모드 등에서는 저장이 안 될 수 있음 */
     }
+    // 저장 공간이 모자랄 때 브라우저가 이 사이트 데이터를 먼저 지우지 않도록 한 번 요청해 둔다
+    if (!askedPersist && navigator.storage && navigator.storage.persist) {
+      askedPersist = true;
+      navigator.storage.persist().catch(() => {});
+    }
   }
 
   const db = load();
   const getSet = (id) => db.sets.find((s) => s.id === id);
-  const getSentence = (setId, sid) => {
-    const set = getSet(setId);
-    return set && set.sentences.find((s) => s.id === sid);
-  };
 
   // ───────── 화면 전환 ─────────
   const VIEWS = ['home', 'editor', 'practice', 'result'];
@@ -312,6 +314,7 @@
   // ───────── 홈 ─────────
   function renderHome() {
     const list = $('#set-list');
+    $('#combo-btn').hidden = db.sets.length < 2;
     if (!db.sets.length) {
       list.innerHTML = '<div class="empty">아직 문장 세트가 없어요.<br><b>＋ 문장 넣기</b>로 외우고 싶은 문장을 넣어 보세요.</div>';
       return;
@@ -364,6 +367,12 @@
     switch (act.dataset.action) {
       case 'new-set':
         openEditor(null);
+        break;
+      case 'combo':
+        openCombo();
+        break;
+      case 'backup':
+        openBackup();
         break;
       case 'practice':
         openSetup(id);
@@ -422,7 +431,28 @@
     return 'j' + b64url.enc(bytes);
   }
 
-  // 링크에서 온 값은 남이 만든 것이니 모양을 확인하고 정리해서만 쓴다
+  // 백업 링크: 모든 세트와 외운 기록을 담는다. 문장은 [영어, 뜻, 외웠으면 1]
+  async function encodeAll() {
+    const data = {
+      v: 2,
+      sets: db.sets.map((set) => ({
+        n: set.name,
+        s: set.sentences.map((x) => (x.mastered ? [x.en, x.ko || '', 1] : x.ko ? [x.en, x.ko] : [x.en])),
+      })),
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(data));
+    if ('CompressionStream' in window) {
+      try {
+        return 'z' + b64url.enc(await pipeBytes(bytes, new CompressionStream('deflate')));
+      } catch (e) {
+        /* 못 줄이면 그냥 담는다 */
+      }
+    }
+    return 'j' + b64url.enc(bytes);
+  }
+
+  // 링크에서 온 값은 남이 만든 것이니 모양을 확인하고 정리해서만 쓴다.
+  // 세트 하나 공유(v1: {n, s}) / 백업(v2: {sets: [{n, s}]}) 둘 다 { backup, sets: [{ name, items }] } 로 돌려준다
   async function decodeShared(code) {
     const bytes = b64url.dec(code.slice(1));
     let raw;
@@ -430,14 +460,22 @@
     else if (code[0] === 'j') raw = bytes;
     else throw new Error('unknown');
     const data = JSON.parse(new TextDecoder().decode(raw));
-    if (!data || !Array.isArray(data.s)) throw new Error('shape');
-    const items = data.s
-      .filter(Array.isArray)
-      .slice(0, 500)
-      .map(([en, ko]) => ({ en: normSentence(String(en || '')), ko: normSentence(String(ko || '')) }))
-      .filter((it) => /[A-Za-z0-9]/.test(it.en));
-    if (!items.length) throw new Error('empty');
-    return { name: normSentence(String(data.n || '')).slice(0, 60) || '공유받은 문장', items };
+    const backup = !!(data && Array.isArray(data.sets));
+    const rawSets = backup ? data.sets.slice(0, 100) : data && Array.isArray(data.s) ? [data] : null;
+    if (!rawSets) throw new Error('shape');
+    const sets = rawSets
+      .filter((rs) => rs && Array.isArray(rs.s))
+      .map((rs) => ({
+        name: normSentence(String(rs.n || '')).slice(0, 60) || '공유받은 문장',
+        items: rs.s
+          .filter(Array.isArray)
+          .slice(0, 500)
+          .map(([en, ko, m]) => ({ en: normSentence(String(en || '')), ko: normSentence(String(ko || '')), mastered: backup && m === 1 }))
+          .filter((it) => /[A-Za-z0-9]/.test(it.en)),
+      }))
+      .filter((s) => s.items.length);
+    if (!sets.length) throw new Error('empty');
+    return { backup, sets };
   }
 
   function shareBase() {
@@ -450,6 +488,17 @@
   const shareCopy = $('#share-copy');
   let sharing = null;
 
+  function openLinkDialog(title, msg, name, url) {
+    sharing = { name, url };
+    $('#share-title').textContent = title;
+    $('#share-msg').textContent = msg;
+    shareUrl.value = url;
+    shareCopy.textContent = '링크 복사';
+    $('#share-native').hidden = !navigator.share;
+    shareDlg.showModal();
+    shareUrl.select();
+  }
+
   async function openShare(id) {
     const set = getSet(id);
     if (!set) return;
@@ -458,14 +507,22 @@
       return;
     }
     const url = shareBase() + '#s=' + (await encodeSet(set));
-    sharing = { name: set.name, url };
-    $('#share-title').textContent = `'${set.name}' 공유하기`;
-    $('#share-msg').textContent = `이 링크를 연 친구는 같은 ${set.sentences.length}문장을 자기 세트로 추가할 수 있어요. 외운 기록은 같이 가지 않아요.`;
-    shareUrl.value = url;
-    shareCopy.textContent = '링크 복사';
-    $('#share-native').hidden = !navigator.share;
-    shareDlg.showModal();
-    shareUrl.select();
+    openLinkDialog(`'${set.name}' 공유하기`, `이 링크를 연 친구는 같은 ${set.sentences.length}문장을 자기 세트로 추가할 수 있어요. 외운 기록은 같이 가지 않아요.`, set.name, url);
+  }
+
+  async function openBackup() {
+    const n = db.sets.reduce((k, s) => k + s.sentences.length, 0);
+    if (!n) {
+      toast('백업할 문장이 없어요');
+      return;
+    }
+    const url = shareBase() + '#s=' + (await encodeAll());
+    openLinkDialog(
+      '백업 링크',
+      `세트 ${db.sets.length}개, ${n}문장과 외운 기록이 담긴 링크예요. 즐겨찾기나 카톡 '나에게 보내기'로 저장해 두면, 기록이 지워지거나 다른 브라우저·기기에서도 이 링크로 그대로 불러올 수 있어요. 문장을 바꾸면 백업 링크를 다시 만들어 주세요.`,
+      '백업',
+      url
+    );
   }
 
   shareUrl.addEventListener('focus', () => shareUrl.select());
@@ -505,22 +562,57 @@
       return;
     }
     if (view !== 'home') goHome();
-    const { name, items } = shared;
-    const same = db.sets.some((s) => s.name === name && s.sentences.length === items.length && s.sentences.every((x, i) => x.en === items[i].en));
-    $('#import-title').textContent = name;
-    $('#import-msg').textContent = `${items.length}문장` + (same ? ' · 이미 같은 세트가 있어요. 추가하면 하나 더 생겨요.' : '');
-    $('#import-list').innerHTML = items.map(previewItem).join('');
+    const hasSame = ({ name, items }) => db.sets.some((s) => s.name === name && s.sentences.length === items.length && s.sentences.every((x, i) => x.en === items[i].en));
+    const okBtn = importDlg.querySelector('button[value="ok"]');
+
+    if (!shared.backup) {
+      const { name, items } = shared.sets[0];
+      $('#import-eyebrow').textContent = '친구가 보낸 문장 세트';
+      $('#import-title').textContent = name;
+      $('#import-msg').textContent = `${items.length}문장` + (hasSame(shared.sets[0]) ? ' · 이미 같은 세트가 있어요. 추가하면 하나 더 생겨요.' : '');
+      $('#import-list').innerHTML = items.map(previewItem).join('');
+      okBtn.textContent = '내 세트에 추가';
+    } else {
+      // 백업: 이미 똑같이 있는 세트는 건너뛰고 나머지를 외운 기록째 되살린다
+      const fresh = shared.sets.filter((s) => !hasSame(s));
+      const total = shared.sets.reduce((k, s) => k + s.items.length, 0);
+      $('#import-eyebrow').textContent = '백업 불러오기';
+      $('#import-title').textContent = `세트 ${shared.sets.length}개 · ${total}문장`;
+      $('#import-msg').textContent = fresh.length
+        ? shared.sets.length - fresh.length
+          ? `이미 있는 세트 ${shared.sets.length - fresh.length}개는 건너뛰고 ${fresh.length}개를 불러와요.`
+          : `세트 ${fresh.length}개를 외운 기록과 함께 불러와요.`
+        : '백업에 있는 세트가 이미 다 있어요.';
+      $('#import-list').innerHTML = shared.sets
+        .map((s) => `<li class="pv-group">${esc(s.name)}<span>${s.items.length}문장${hasSame(s) ? ' · 이미 있음' : ''}</span></li>${s.items.map(previewItem).join('')}`)
+        .join('');
+      okBtn.textContent = fresh.length ? '불러오기' : '확인';
+    }
     importDlg.returnValue = '';
     importDlg.showModal();
     importDlg.addEventListener(
       'close',
       () => {
         if (importDlg.returnValue !== 'ok') return;
-        const set = makeSet(name, items);
-        db.sets.unshift(set);
+        if (!shared.backup) {
+          const set = makeSet(shared.sets[0].name, shared.sets[0].items);
+          db.sets.unshift(set);
+          persist();
+          renderHome();
+          openSetup(set.id);
+          return;
+        }
+        const fresh = shared.sets.filter((s) => !hasSame(s));
+        if (!fresh.length) return;
+        const made = fresh.map(({ name, items }) => {
+          const set = makeSet(name, items);
+          set.sentences.forEach((x, i) => (x.mastered = !!items[i].mastered));
+          return set;
+        });
+        db.sets.push(...made);
         persist();
         renderHome();
-        openSetup(set.id);
+        toast(`세트 ${made.length}개를 불러왔어요`);
       },
       { once: true }
     );
@@ -548,16 +640,52 @@
   let editorMode = db.settings.editorMode === 'paste' ? 'paste' : 'rows';
   const toLine = (it) => (it.ko ? `${it.en} | ${it.ko}` : it.en);
 
+  // 새 세트를 넣는 중에 쓴 건 저장 버튼을 안 눌러도 임시로 남겨 둔다 (창을 닫아도 다음에 이어서)
+  const DRAFT_KEY = 'wewotaja.draft';
+  let draftReady = false; // 문장 넣기 화면을 다 채운 뒤부터 임시 저장
+  function loadDraft() {
+    try {
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+      return d && ((d.rows && d.rows.length) || (d.text || '').trim() || (d.name || '').trim()) ? d : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function saveDraft() {
+    if (!draftReady || editingId) return;
+    const rows = [...rowsBox.children]
+      .map((li) => [li.querySelector('.row-en').value, li.querySelector('.row-ko').value])
+      .filter(([en, ko]) => en.trim() || ko.trim());
+    const draft = { name: nameInput.value, mode: editorMode, rows, text: textInput.value };
+    try {
+      if (!rows.length && !draft.text.trim() && !draft.name.trim()) localStorage.removeItem(DRAFT_KEY);
+      else localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch (e) {
+      /* 저장소를 못 쓰면 임시 저장도 건너뜀 */
+    }
+  }
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (e) {
+      /* 무시 */
+    }
+  }
+
   function openEditor(id) {
+    draftReady = false;
     editingId = id || null;
     const set = id ? getSet(id) : null;
+    const draft = set ? null : loadDraft();
     $('#editor-title').textContent = set ? '문장 세트 수정' : '문장 넣기';
-    nameInput.value = set ? set.name : '';
+    nameInput.value = set ? set.name : draft ? draft.name || '' : '';
     const items = set ? set.sentences.map((s) => ({ en: s.en, ko: s.ko })) : [];
-    textInput.value = items.map(toLine).join('\n');
-    setRows(items);
-    setEditorMode(editorMode, false);
+    textInput.value = draft ? draft.text || '' : items.map(toLine).join('\n');
+    setRows(draft ? (draft.rows || []).map(([en, ko]) => ({ en, ko })) : items);
+    setEditorMode(draft && (draft.mode === 'rows' || draft.mode === 'paste') ? draft.mode : editorMode, false);
+    draftReady = true;
     show('editor');
+    if (draft) toast('저장하지 않았던 문장을 불러왔어요');
     if (editorMode === 'paste') textInput.focus();
     else if (!set) rowsBox.querySelector('.row-en').focus();
   }
@@ -606,6 +734,7 @@
     [...rowsBox.children].forEach((li, i) => (li.querySelector('.row-no').textContent = i + 1));
     const { items, missing } = rowsData();
     $('#rows-count').textContent = `${items.length}문장` + (missing ? ` · 영어가 없는 줄 ${missing}개는 저장 안 돼요` : '');
+    saveDraft();
   }
 
   function addRow(after) {
@@ -717,6 +846,7 @@
       db.settings.editorMode = mode;
       persist();
     }
+    saveDraft();
   }
 
   for (const r of document.querySelectorAll('input[name="editor-mode"]')) r.addEventListener('change', () => setEditorMode(r.value));
@@ -762,6 +892,7 @@
       const made = groups.map((g) => makeSet(g.title ? (base ? `${base} · ${g.title}` : g.title) : base || autoName(g.items), g.items));
       db.sets.unshift(...made);
       persist();
+      clearDraft();
       renderHome();
       show('home');
       if (thenPractice) openSetup(made[0].id);
@@ -785,6 +916,7 @@
     } else {
       set = makeSet(name, items);
       db.sets.unshift(set);
+      clearDraft();
     }
     persist();
     renderHome();
@@ -793,7 +925,11 @@
     else toast(`${items.length}문장을 저장했어요`);
   }
 
-  textInput.addEventListener('input', renderPreview);
+  textInput.addEventListener('input', () => {
+    renderPreview();
+    saveDraft();
+  });
+  nameInput.addEventListener('input', saveDraft);
   $('#split-btn').addEventListener('click', () => {
     const before = parseText(textInput.value).items.length;
     textInput.value = splitText(textInput.value);
@@ -813,24 +949,96 @@
   $('#save-btn').addEventListener('click', () => saveEditor(false));
   $('#save-practice-btn').addEventListener('click', () => saveEditor(true));
 
+  // ───────── 여러 세트 한번에: 순서 정하기 ─────────
+  const comboDlg = $('#combo');
+  let comboOrder = [];
+  const UP_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>';
+  const DOWN_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  const OUT_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
+  function openCombo() {
+    comboOrder = (db.settings.comboIds || []).filter((id) => getSet(id));
+    renderCombo();
+    comboDlg.showModal();
+  }
+
+  function renderCombo() {
+    const picked = comboOrder.map(getSet);
+    const rest = db.sets.filter((s) => !comboOrder.includes(s.id));
+    const name = (s) => `<span class="combo-name">${esc(s.name)}<small>${s.sentences.length}문장</small></span>`;
+    $('#combo-picked').innerHTML = picked.length
+      ? picked
+          .map(
+            (s, i) =>
+              `<li class="combo-item" data-id="${s.id}"><span class="combo-no">${i + 1}</span>${name(s)}` +
+              `<button type="button" class="icon-btn" data-move="-1" aria-label="앞으로"${i === 0 ? ' disabled' : ''}>${UP_ICON}</button>` +
+              `<button type="button" class="icon-btn" data-move="1" aria-label="뒤로"${i === picked.length - 1 ? ' disabled' : ''}>${DOWN_ICON}</button>` +
+              `<button type="button" class="icon-btn" data-out aria-label="빼기">${OUT_ICON}</button></li>`
+          )
+          .join('')
+      : '<li class="combo-empty">아래에서 연습할 세트를 순서대로 눌러 주세요.</li>';
+    $('#combo-rest').innerHTML = rest.length
+      ? rest.map((s) => `<li><button type="button" class="combo-add" data-add="${s.id}" aria-label="${esc(s.name)} 넣기"><span class="combo-plus">＋</span>${name(s)}</button></li>`).join('')
+      : '<li class="combo-empty">세트를 다 골랐어요.</li>';
+    $('#combo-all').hidden = !rest.length;
+    const total = picked.reduce((n, s) => n + s.sentences.length, 0);
+    $('#combo-sum').textContent = picked.length ? `${picked.length}개 세트, ${total}문장을 위 순서대로 이어서 연습해요.` : '';
+    $('#combo-next').disabled = !picked.length;
+  }
+
+  comboDlg.addEventListener('click', (e) => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.hasAttribute('data-close')) {
+      comboDlg.close();
+      return;
+    }
+    if (t.id === 'combo-next') {
+      db.settings.comboIds = comboOrder.slice();
+      persist();
+      comboDlg.close();
+      openSetup(comboOrder.slice());
+      return;
+    }
+    if (t.id === 'combo-all') comboOrder.push(...db.sets.filter((s) => !comboOrder.includes(s.id)).map((s) => s.id));
+    else if (t.dataset.add) comboOrder.push(t.dataset.add);
+    else {
+      const id = t.closest('.combo-item')?.dataset.id;
+      const i = comboOrder.indexOf(id);
+      if (i < 0) return;
+      if (t.hasAttribute('data-out')) comboOrder.splice(i, 1);
+      else {
+        const j = i + Number(t.dataset.move);
+        if (j < 0 || j >= comboOrder.length) return;
+        [comboOrder[i], comboOrder[j]] = [comboOrder[j], comboOrder[i]];
+      }
+    }
+    renderCombo();
+  });
+
   // ───────── 연습 설정 창 ─────────
   const dialog = $('#setup');
   const form = $('#setup-form');
-  let setupId = null;
+  let setupIds = [];
 
-  function openSetup(id) {
-    const set = getSet(id);
-    if (!set) return;
-    if (!set.sentences.length) {
+  // 세트 하나(id) 또는 여러 세트(id 배열, 이 순서대로 이어서)
+  function openSetup(ids) {
+    ids = (Array.isArray(ids) ? ids : [ids]).filter((id) => getSet(id));
+    const sets = ids.map(getSet);
+    const sents = sets.flatMap((s) => s.sentences);
+    if (!sents.length) {
       toast('문장이 없어요. 먼저 문장을 넣어 주세요');
       return;
     }
-    setupId = id;
+    setupIds = ids;
     const st = db.settings;
     const f = form.elements;
-    $('#setup-title').textContent = set.name;
-    const un = set.sentences.filter((s) => !s.mastered).length;
-    $('#scope-all-n').textContent = set.sentences.length;
+    $('#setup-title').textContent = sets.length === 1 ? sets[0].name : `${sets.length}개 세트 이어서`;
+    const order = $('#setup-order');
+    order.hidden = sets.length < 2;
+    order.textContent = sets.map((s) => s.name).join(' → ');
+    const un = sents.filter((s) => !s.mastered).length;
+    $('#scope-all-n').textContent = sents.length;
     $('#scope-un-n').textContent = un;
     form.querySelector('input[name="scope"][value="unmastered"]').disabled = un === 0;
     f.mode.value = st.mode;
@@ -840,6 +1048,7 @@
     f.shuffle.checked = st.shuffle;
     f.ignoreCase.checked = st.ignoreCase;
     f.speak.checked = st.speak;
+    f.hideMeaning.checked = !!st.hideMeaning;
     syncSetup();
     dialog.showModal();
   }
@@ -867,11 +1076,12 @@
       shuffle: f.shuffle.checked,
       ignoreCase: f.ignoreCase.checked,
       speak: f.speak.checked,
+      hideMeaning: f.hideMeaning.checked,
     };
     db.settings = { ...db.settings, ...opts };
     persist();
     // 창이 닫힌 다음에 시작해야 입력칸에 포커스가 간다
-    setTimeout(() => startPractice(setupId, opts), 0);
+    setTimeout(() => startPractice(setupIds, opts), 0);
   });
 
   // ───────── 소리 ─────────
@@ -917,17 +1127,22 @@
   const input = $('#p-input');
   let S = null; // 지금 하고 있는 연습
   let lastOpts = null;
-  let lastSetId = null;
+  let lastSetIds = [];
   let ticker = 0;
 
   const same = (a, b) => a === b || (S.opts.ignoreCase && a.toLowerCase() === b.toLowerCase());
   const eq = (a, b) => a.length === b.length && [...a].every((ch, i) => same(ch, b[i]));
 
-  function startPractice(setId, opts) {
-    const set = getSet(setId);
-    if (!set || !set.sentences.length) return;
-    let pool = opts.scope === 'unmastered' ? set.sentences.filter((s) => !s.mastered) : set.sentences.slice();
-    if (!pool.length) pool = set.sentences.slice();
+  // setIds: 세트 하나 또는 여러 세트(이 순서대로 문장을 이어 붙인다)
+  function startPractice(setIds, opts) {
+    setIds = (Array.isArray(setIds) ? setIds : [setIds]).filter((id) => getSet(id));
+    const sets = setIds.map(getSet);
+    const sentMap = new Map(); // 문장 id → { sent, set }
+    for (const set of sets) for (const s of set.sentences) sentMap.set(s.id, { sent: s, set });
+    const all = sets.flatMap((s) => s.sentences);
+    if (!all.length) return;
+    let pool = opts.scope === 'unmastered' ? all.filter((s) => !s.mastered) : all.slice();
+    if (!pool.length) pool = all.slice();
     const stages = MODES[opts.mode] || MODES.steps;
 
     const queue = [];
@@ -942,7 +1157,8 @@
     }
 
     S = {
-      setId,
+      setIds,
+      sentMap,
       opts: { ...opts },
       stages,
       finalStage: stages[stages.length - 1],
@@ -959,8 +1175,7 @@
       cur: null,
     };
     lastOpts = { ...opts };
-    lastSetId = setId;
-    $('#p-set').textContent = set.name;
+    lastSetIds = setIds;
     show('practice');
     clearInterval(ticker);
     ticker = setInterval(tick, 250);
@@ -982,7 +1197,8 @@
     }
 
     const task = S.queue[S.pos];
-    const sent = getSentence(S.setId, task.sid);
+    const entry = S.sentMap.get(task.sid);
+    const sent = entry && entry.sent;
     if (!sent) {
       S.pos++;
       if (!task.retry) S.done++;
@@ -994,8 +1210,8 @@
     const words = segment(target);
     const mask = buildMask(target, words, task.stage);
     const cue = new Set();
-    // 뜻이 없는 문장은 외워 쓰기에서 첫 단어를 실마리로 보여 준다
-    if (task.stage === 4 && !sent.ko && words.length) for (let i = words[0].start; i < words[0].end; i++) cue.add(i);
+    // 뜻이 없거나 뜻을 안 보고 할 때는 외워 쓰기에서 첫 단어를 실마리로 보여 준다
+    if (task.stage === 4 && (!sent.ko || S.opts.hideMeaning) && words.length) for (let i = words[0].start; i < words[0].end; i++) cue.add(i);
 
     S.cur = { task, sent, target, words, mask, cue, revealed: new Set(), typed: '', errs: new Set(), start: 0, endAt: 0, hints: 0, phase: 'typing', revealAll: false, gaveUp: false, submitted: false };
     input.value = '';
@@ -1054,6 +1270,7 @@
     const { task, sent, words } = S.cur;
     const st = task.retry ? 1 : task.stage;
     practiceView.dataset.stage = st;
+    $('#p-set').textContent = S.sentMap.get(task.sid).set.name;
     const chip = $('#p-chip');
     chip.className = 'stage-chip s' + st;
     chip.textContent = task.retry ? '고쳐 쓰기' : task.review ? `복습 · ${STAGE[task.stage].name}` : `${task.stage}단계 · ${STAGE[task.stage].name}`;
@@ -1061,13 +1278,20 @@
     $('#p-bar').style.width = (S.done / S.total) * 100 + '%';
 
     const meaning = $('#p-meaning');
-    meaning.hidden = !sent.ko;
+    const hideKo = !!(S.opts.hideMeaning && !S.cur.peeked); // 뜻 안 보고 하기: "뜻 보기"를 누르기 전까지 숨김
+    meaning.hidden = !sent.ko || hideKo;
     meaning.textContent = sent.ko;
     meaning.classList.toggle('big', st === 4);
+    $('#meaning-peek').hidden = !(sent.ko && hideKo);
 
     const cue = $('#p-cue');
     cue.hidden = st !== 4;
-    if (st === 4) cue.textContent = sent.ko ? `단어 ${words.length}개` : `단어 ${words.length}개 · 뜻이 없어서 첫 단어만 보여 드려요`;
+    if (st === 4)
+      cue.textContent = !sent.ko
+        ? `단어 ${words.length}개 · 뜻이 없어서 첫 단어만 보여 드려요`
+        : hideKo
+          ? `단어 ${words.length}개 · 뜻 없이 첫 단어만 보여 드려요`
+          : `단어 ${words.length}개`;
     renderHints();
   }
 
@@ -1198,6 +1422,7 @@
     chip.className = 'stage-chip lg s' + st;
     let title = STAGE[st].name;
     let desc = STAGE[st].desc;
+    if (st === 4 && S.opts.hideMeaning) desc = '뜻 없이 첫 단어만 보고 문장을 처음부터 끝까지 써요. 막히면 "뜻 보기"나 Tab을 쓸 수 있어요.';
     if (task.intro === 'review') {
       chip.textContent = `복습 ${S.reviewRound}`;
       title = '못 외운 문장을 한 번 더';
@@ -1419,8 +1644,8 @@
         c.sent.last = result;
       }
     }
-    const set = getSet(S.setId);
-    if (set) set.lastPracticed = Date.now();
+    const entry = S.sentMap.get(c.sent.id);
+    if (entry) entry.set.lastPracticed = Date.now();
     persist();
     if (S.opts.speak) speak(c.target);
     updateStats();
@@ -1510,6 +1735,18 @@
     speak(c.target);
     focusInput();
   });
+  // 뜻 안 보고 하다가 막히면 그 문장만 뜻을 본다 (2단계부터는 힌트로 셈)
+  $('#meaning-peek').addEventListener('click', () => {
+    if (!S || !S.cur) return;
+    const c = S.cur;
+    c.peeked = true;
+    if (c.phase === 'typing' && c.task.stage >= 2 && !c.task.retry) {
+      c.hints++;
+      toast('뜻 보기를 힌트로 썼어요');
+    }
+    renderChrome();
+    focusInput();
+  });
   $('#quit-btn').addEventListener('click', () => finish(false));
 
   // ───────── 결과 ─────────
@@ -1529,10 +1766,10 @@
   }
 
   function renderResult(s, completed) {
-    const set = getSet(s.setId);
+    const sets = s.setIds.map(getSet).filter(Boolean);
     const avg = s.tot.ms > 0 ? Math.round(s.tot.correct / (s.tot.ms / 60000)) : 0;
     const acc = s.tot.len ? Math.max(0, Math.round((1 - s.tot.err / s.tot.len) * 100)) : 0;
-    $('#r-set').textContent = set ? set.name : '';
+    $('#r-set').textContent = sets.map((x) => x.name).join(' → ');
     $('#r-title').textContent = completed ? '연습 완료!' : '여기까지 했어요';
     $('#r-cpm').textContent = avg;
     $('#r-best').textContent = s.best;
@@ -1541,21 +1778,25 @@
 
     const memo = s.finalStage >= 2;
     $('#r-mem').hidden = !memo;
-    const rows = s.ids.map((id) => ({ sent: getSentence(s.setId, id), r: s.results[id] })).filter((x) => x.sent);
+    const rows = s.ids.map((id) => ({ ...(s.sentMap.get(id) || {}), r: s.results[id] })).filter((x) => x.sent);
     const firstTry = rows.filter((x) => x.r && x.r.first === 'pass').length;
     const passed = rows.filter((x) => x.r && x.r.last === 'pass').length;
 
     if (memo) {
       $('#r-mem-sum').textContent = `한 번에 ${firstTry} · 최종 ${passed} / ${rows.length}`;
+      // 여러 세트면 세트 이름으로 묶어서 보여 준다
+      let lastSet = null;
       $('#r-list').innerHTML = rows
-        .map(({ sent, r }) => {
+        .map(({ sent, set, r }) => {
+          const head = sets.length > 1 && set !== lastSet ? `<li class="r-group">${esc(set.name)}</li>` : '';
+          lastSet = set;
           let cls = 'none';
           let label = '안 함';
           if (r && r.first === 'pass') [cls, label] = ['good', '✓ 한 번에'];
           else if (r && r.last === 'pass') [cls, label] = ['ok', `✓ ${r.tries}번 만에`];
           else if (r && r.last === 'weak') [cls, label] = ['warn', '△ 힌트·오타'];
           else if (r) [cls, label] = ['bad', '✗ 복습 필요'];
-          return `<li class="r-item"><span class="r-badge ${cls}">${label}</span><div><p class="r-en">${esc(sent.en)}</p>${sent.ko ? `<p class="r-ko">${esc(sent.ko)}</p>` : ''}</div></li>`;
+          return `${head}<li class="r-item"><span class="r-badge ${cls}">${label}</span><div><p class="r-en">${esc(sent.en)}</p>${sent.ko ? `<p class="r-ko">${esc(sent.ko)}</p>` : ''}</div></li>`;
         })
         .join('');
     }
@@ -1566,17 +1807,18 @@
     else sub = `${rows.length}문장을 따라 썼어요. 손에 익었다면 단계별 암기로 외워 봐요.`;
     $('#r-sub').textContent = sub;
 
-    const weakN = set ? set.sentences.filter((x) => !x.mastered).length : 0;
+    const allSents = sets.flatMap((x) => x.sentences);
+    const weakN = allSents.filter((x) => !x.mastered).length;
     const weakBtn = $('#r-weak');
-    weakBtn.hidden = !(set && weakN > 0 && weakN < set.sentences.length);
+    weakBtn.hidden = !(weakN > 0 && weakN < allSents.length);
     weakBtn.textContent = `못 외운 ${weakN}문장만 다시`;
   }
 
   $('#r-again').addEventListener('click', () => {
-    if (lastSetId && lastOpts) startPractice(lastSetId, lastOpts);
+    if (lastSetIds.length && lastOpts) startPractice(lastSetIds, lastOpts);
   });
   $('#r-weak').addEventListener('click', () => {
-    if (lastSetId && lastOpts) startPractice(lastSetId, { ...lastOpts, scope: 'unmastered' });
+    if (lastSetIds.length && lastOpts) startPractice(lastSetIds, { ...lastOpts, scope: 'unmastered' });
   });
 
   // ───────── 시작 ─────────
