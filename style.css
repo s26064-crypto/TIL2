@@ -225,6 +225,9 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
 .section-head h2 { margin: 0; font-size: 18px; }
 
 .set-list { display: grid; gap: 12px; }
+.section-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.store-note { margin: 12px 2px 0; font-size: 13.5px; color: var(--ink-3); }
+.store-note b { color: var(--ink-2); }
 .add-row { margin: 22px 0 36px; }
 .set-card {
   display: flex;
@@ -512,6 +515,21 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
   color: var(--sc);
   background: color-mix(in srgb, var(--sc) 12%, transparent);
 }
+.peek-btn {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 3px 12px;
+  border: 1px dashed var(--rule-strong);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.peek-btn:hover { border-color: var(--sc); color: var(--sc); }
 .meaning.big { font-size: clamp(19px, 2.4vw, 24px); color: var(--ink); }
 .cue { margin: -8px 0 18px; font-size: 13.5px; color: var(--ink-3); }
 
@@ -741,6 +759,56 @@ kbd.on-primary { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 
 .share-url:focus { border-color: var(--accent); }
 .import-list { max-height: 280px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 12px; }
 .dialog-foot { flex-wrap: wrap; }
+.setup-order { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: var(--accent); }
+.combo-label { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.combo-label .muted { font-weight: 500; margin-left: 4px; }
+.combo-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.combo-label-row .combo-label { margin: 0; }
+.combo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 232px; overflow: auto; }
+.combo-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 6px 7px 10px;
+  border: 1.5px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+.combo-no {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+.combo-name { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.combo-name small { font-size: 12.5px; font-weight: 500; color: var(--ink-3); }
+.combo-item .icon-btn { width: 32px; height: 32px; flex-shrink: 0; }
+.combo-item .icon-btn:disabled { opacity: 0.25; cursor: default; }
+.combo-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1.5px dashed var(--rule-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.combo-add:hover { border-color: var(--accent); background: var(--accent-soft); }
+.combo-plus { color: var(--accent); font-weight: 800; }
+.combo-empty { padding: 10px 12px; font-size: 13.5px; color: var(--ink-3); border: 1.5px dashed var(--rule); border-radius: 12px; }
+.r-list .r-group { padding: 14px 0 2px; font-size: 14px; font-weight: 800; color: var(--accent); }
+.r-list .r-group + .r-item { border-top: 0; }
 .btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn.danger-solid:hover { background: var(--bad); filter: brightness(1.08); }
 .dialog::backdrop { background: rgba(14, 14, 20, 0.45); backdrop-filter: blur(2px); }

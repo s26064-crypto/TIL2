@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <!-- app.js / style.css를 고치면 v= 숫자를 올려 주세요. 깃허브 페이지는 파일을 10분씩 캐시해서,
        안 올리면 새 화면에 예전 app.js가 붙어 버튼이 안 먹을 수 있어요. -->
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body data-view="home">
   <header class="topbar">
@@ -67,8 +67,13 @@
 
       <div class="section-head">
         <h2>내 문장 세트</h2>
+        <div class="section-tools">
+          <button class="btn ghost sm" type="button" data-action="combo" id="combo-btn" hidden>여러 세트 한번에</button>
+          <button class="btn ghost sm" type="button" data-action="backup" id="backup-btn">백업 링크</button>
+        </div>
       </div>
       <div id="set-list" class="set-list"></div>
+      <p class="store-note">문장과 외운 기록은 <b>지금 쓰는 브라우저에만</b> 저장돼요. 크롬과 엣지도 따로 저장되니, 다른 브라우저·기기에서 쓰거나 기록이 지워질 때를 대비해 <b>백업 링크</b>를 만들어 두세요.</p>
     </section>
 
     <!-- ───────── 문장 넣기 ───────── -->
@@ -165,6 +170,7 @@
 
       <div id="card" class="type-card">
         <p id="p-meaning" class="meaning" hidden></p>
+        <button type="button" id="meaning-peek" class="peek-btn" hidden>뜻 보기</button>
         <p id="p-cue" class="cue" hidden></p>
         <div id="p-line" class="line" aria-hidden="true"></div>
         <input id="p-input" class="ghost-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" lang="en" aria-label="영어 문장 입력">
@@ -245,6 +251,7 @@
         <div>
           <p class="eyebrow">연습 설정</p>
           <h2 id="setup-title">세트</h2>
+          <p id="setup-order" class="setup-order" hidden></p>
         </div>
         <button class="icon-btn" type="button" data-close aria-label="닫기">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -293,6 +300,7 @@
         <label class="check"><input type="checkbox" name="shuffle"><span>문장 순서 섞기</span></label>
         <label class="check"><input type="checkbox" name="ignoreCase"><span>대소문자 구분 안 하기</span></label>
         <label class="check"><input type="checkbox" name="speak"><span>다 쓰면 소리 내어 읽어 주기</span></label>
+        <label class="check"><input type="checkbox" name="hideMeaning"><span>뜻 안 보고 하기</span></label>
       </fieldset>
 
       <div class="dialog-foot">
@@ -316,6 +324,35 @@
     </form>
   </dialog>
 
+  <!-- ───────── 여러 세트 한번에: 순서 정하기 ───────── -->
+  <dialog id="combo" class="dialog small">
+    <div class="dialog-in">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">여러 세트 한번에</p>
+          <h2>연습할 순서 정하기</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="닫기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div>
+        <p class="combo-label">연습 순서</p>
+        <ol id="combo-picked" class="combo-list"></ol>
+      </div>
+      <div>
+        <div class="combo-label-row">
+          <p class="combo-label">세트 고르기 <span class="muted">누른 순서대로 들어가요</span></p>
+          <button class="btn ghost sm" type="button" id="combo-all">남은 세트 전부</button>
+        </div>
+        <ul id="combo-rest" class="combo-list"></ul>
+      </div>
+      <p id="combo-sum" class="field-note"></p>
+      <div class="dialog-foot">
+        <button class="btn ghost" type="button" data-close>취소</button>
+        <button class="btn primary" type="button" id="combo-next">다음</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- ───────── 세트 공유 ───────── -->
   <dialog id="share" class="dialog small">
     <form method="dialog" class="dialog-in">
@@ -336,7 +373,7 @@
   <dialog id="import" class="dialog small">
     <form method="dialog" class="dialog-in">
       <div>
-        <p class="eyebrow">친구가 보낸 문장 세트</p>
+        <p class="eyebrow" id="import-eyebrow">친구가 보낸 문장 세트</p>
         <h2 id="import-title"></h2>
         <p id="import-msg" class="confirm-msg"></p>
       </div>
@@ -350,6 +387,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
