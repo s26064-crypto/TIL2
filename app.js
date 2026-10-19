@@ -318,16 +318,29 @@
         break;
       case 'delete': {
         const set = getSet(id);
-        if (set && confirm(`'${set.name}' 세트를 지울까요?\n지운 세트는 되돌릴 수 없어요.`)) {
+        if (!set) break;
+        askConfirm(`'${set.name}' 세트를 지울까요?`, '지운 세트와 외운 기록은 되돌릴 수 없어요.', '지우기').then((ok) => {
+          if (!ok) return;
           db.sets = db.sets.filter((s) => s.id !== id);
           persist();
           renderHome();
           toast('세트를 지웠어요');
-        }
+        });
         break;
       }
     }
   });
+
+  // 브라우저 기본 confirm()은 앱 안 브라우저 등에서 창 없이 바로 '취소'가 돼 버려서, 페이지 안의 창으로 묻는다
+  const confirmDlg = $('#confirm');
+  function askConfirm(title, msg, okLabel) {
+    $('#confirm-title').textContent = title;
+    $('#confirm-msg').textContent = msg;
+    $('#confirm-ok').textContent = okLabel;
+    confirmDlg.returnValue = '';
+    confirmDlg.showModal();
+    return new Promise((resolve) => confirmDlg.addEventListener('close', () => resolve(confirmDlg.returnValue === 'ok'), { once: true }));
+  }
 
   // ───────── 문장 넣기 ─────────
   let editingId = null;
@@ -508,10 +521,17 @@
     pickVoice();
     speechSynthesis.addEventListener('voiceschanged', pickVoice);
   }
+  let warnedVoice = false;
   function speak(text) {
     if (!canSpeak) {
       toast('이 브라우저는 읽어 주기를 지원하지 않아요');
       return;
+    }
+    if (!voice) pickVoice();
+    if (!voice && !warnedVoice) {
+      // 영어 음성이 없으면 한국어 음성이 영어를 읽게 되니 한 번 알려 준다
+      warnedVoice = true;
+      toast('이 브라우저엔 영어 음성이 없어 한국어 음성으로 읽어요. 크롬이나 엣지에서 열면 영어 발음으로 들려요', 4500);
     }
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
